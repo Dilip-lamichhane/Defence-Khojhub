@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { SignedOut } from '@clerk/clerk-react';
 import L from 'leaflet';
+import lottie from 'lottie-web';
 import 'leaflet/dist/leaflet.css';
 
 import { useAppDispatch, useAppSelector } from '../store/hooks';
@@ -11,6 +12,7 @@ import { fetchSupabaseShops, fetchSupabaseShopProducts } from '../store/slices/s
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 import securityPin from '../assets/security-pin_6125244.png';
+import userLocationAnimation from '../assets/wired-lineal-2569-logo-google-maps-hover-pinch.json';
 
 let DefaultIcon = L.icon({
   iconUrl: icon,
@@ -22,6 +24,54 @@ let DefaultIcon = L.icon({
 });
 
 L.Marker.prototype.options.icon = DefaultIcon;
+
+const valleyGeoData = {
+  name: 'Kathmandu Valley Combined',
+  center: { lat: 27.671, lon: 85.375 },
+  bounds: {
+    north: 27.81,
+    south: 27.59,
+    east: 85.52,
+    west: 85.2
+  },
+  extreme_points: [
+    { name: 'North', lat: 27.81, lon: 85.39 },
+    { name: 'South', lat: 27.59, lon: 85.38 },
+    { name: 'East', lat: 27.7, lon: 85.52 },
+    { name: 'West', lat: 27.7, lon: 85.2 }
+  ]
+};
+
+const toRadians = (value) => (value * Math.PI) / 180;
+
+const haversineKm = (from, to) => {
+  if (!from || !to) return 0;
+  const [lat1, lon1] = from;
+  const [lat2, lon2] = to;
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) *
+      Math.cos(toRadians(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return 6371 * c;
+};
+
+const maxDistanceFromBoundsKm = (center) => {
+  if (!center || center.length !== 2) return 0;
+  const [lat, lon] = center;
+  const { north, south, east, west } = valleyGeoData.bounds;
+  const candidates = [
+    [north, lon],
+    [south, lon],
+    [lat, east],
+    [lat, west]
+  ];
+  return Math.max(...candidates.map((point) => haversineKm(center, point)));
+};
 
 const CategoryMapPageScrollable = () => {
   const location = useLocation();
@@ -47,7 +97,7 @@ const CategoryMapPageScrollable = () => {
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [catalogShop, setCatalogShop] = useState(null);
   const [catalogSearch, setCatalogSearch] = useState('');
-  const [userIcon, setUserIcon] = useState(() => L.icon({
+  const [shopIcon, setShopIcon] = useState(() => L.icon({
     iconUrl: securityPin,
     iconSize: [40, 40],
     iconAnchor: [20, 40],
@@ -62,7 +112,7 @@ const CategoryMapPageScrollable = () => {
       const width = Math.max(1, Math.round(img.naturalWidth * scale));
       const height = Math.max(1, Math.round(img.naturalHeight * scale));
 
-      setUserIcon(L.icon({
+      setShopIcon(L.icon({
         iconUrl: securityPin,
         iconSize: [width, height],
         iconAnchor: [Math.round(width / 2), height],
@@ -71,6 +121,38 @@ const CategoryMapPageScrollable = () => {
     };
     img.src = securityPin;
   }, []);
+
+  const userLocationIcon = useMemo(() => {
+    return L.divIcon({
+      className: 'user-location-lottie',
+      html: '<div id="user-location-lottie" style="width:56px;height:56px;"></div>',
+      iconSize: [56, 56],
+      iconAnchor: [28, 56],
+      popupAnchor: [0, -48]
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!userLocation) return;
+    let animation = null;
+    const mountAnimation = () => {
+      const container = document.getElementById('user-location-lottie');
+      if (!container) return;
+      container.innerHTML = '';
+      animation = lottie.loadAnimation({
+        container,
+        renderer: 'svg',
+        loop: true,
+        autoplay: true,
+        animationData: userLocationAnimation
+      });
+    };
+    const rafId = requestAnimationFrame(mountAnimation);
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (animation) animation.destroy();
+    };
+  }, [userLocation]);
   
   // Filter states
   const [productSearch, setProductSearch] = useState('');
@@ -78,6 +160,7 @@ const CategoryMapPageScrollable = () => {
   const [distanceFilter, setDistanceFilter] = useState(10);
   const [minRating, setMinRating] = useState(0);
   const [sortByRating, setSortByRating] = useState('desc');
+  const [radiusFitToken, setRadiusFitToken] = useState(0);
   
   useEffect(() => {
     const query = productSearch.trim();
@@ -106,6 +189,12 @@ const CategoryMapPageScrollable = () => {
     setMapCenter([lat, lng]);
     setMapZoom(13);
   }, [shops, userLocation]);
+
+  useEffect(() => {
+    if (!userLocation || !Array.isArray(userLocation) || userLocation.length !== 2) return;
+    setMapCenter(userLocation);
+    setRadiusFitToken(prev => prev + 1);
+  }, [distanceFilter, userLocation]);
 
   // Filter and sort markers
   const normalizeCategory = (value) =>
@@ -440,14 +529,14 @@ const CategoryMapPageScrollable = () => {
           {userLocation && (
             <Marker 
               position={userLocation} 
-              icon={userIcon} 
+              icon={userLocationIcon} 
               zIndexOffset={1000}
             />
           )}
           
           {/* Category Markers */}
           {filteredMarkers.map(marker => (
-            <Marker key={marker.id} position={marker.position} icon={userIcon}>
+            <Marker key={marker.id} position={marker.position} icon={shopIcon}>
               <Popup>
                 <div className="p-2">
                   <h3 className="font-bold text-lg">{marker.name}</h3>
@@ -468,8 +557,14 @@ const CategoryMapPageScrollable = () => {
             </Marker>
           ))}
           
-          {/* Map Center Updater */}
-          <MapCenterUpdater center={mapCenter} zoom={mapZoom} />
+          <MapSizeUpdater />
+          <MapCenterUpdater
+            center={mapCenter}
+            zoom={mapZoom}
+            radiusKm={distanceFilter}
+            fitToken={radiusFitToken}
+            onZoomChange={setMapZoom}
+          />
         </MapContainer>
         
         {/* Sidebar */}
@@ -582,8 +677,14 @@ const CategoryMapPageScrollable = () => {
                 type="range"
                 min="1"
                 max="50"
+                step="2"
                 value={distanceFilter}
-                onChange={(e) => setDistanceFilter(Number(e.target.value))}
+                onChange={(e) => {
+                  const raw = Number(e.target.value);
+                  const clamped = Math.min(50, Math.max(1, raw));
+                  const snapped = clamped % 2 === 0 ? clamped - 1 : clamped;
+                  setDistanceFilter(snapped);
+                }}
                 className={`flex-1 h-2 rounded-lg appearance-none cursor-pointer ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`}
               />
               <span className={`text-sm w-12 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>{distanceFilter}km</span>
@@ -854,18 +955,71 @@ const CategoryMapPageScrollable = () => {
 };
 
 // Component to update map center and zoom when state changes with smooth animation
-const MapCenterUpdater = ({ center, zoom }) => {
+const MapSizeUpdater = () => {
   const map = useMap();
+
+  useEffect(() => {
+    const safeInvalidate = () => {
+      const container = map.getContainer?.();
+      if (!container || !container.isConnected) return;
+      map.invalidateSize();
+    };
+    const handleResize = () => {
+      safeInvalidate();
+    };
+    let rafId = null;
+    let timeoutId = null;
+    map.whenReady(() => {
+      rafId = requestAnimationFrame(() => {
+        safeInvalidate();
+      });
+      timeoutId = setTimeout(() => safeInvalidate(), 200);
+    });
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (rafId) cancelAnimationFrame(rafId);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [map]);
+
+  return null;
+};
+
+const MapCenterUpdater = ({ center, zoom, radiusKm, fitToken, onZoomChange }) => {
+  const map = useMap();
+  const lastFitToken = useRef(null);
   
   useEffect(() => {
-    if (center && Array.isArray(center) && center.length === 2) {
+    if (!center || !Array.isArray(center) || center.length !== 2) return;
+    map.whenReady(() => {
+      const shouldFit = Number.isFinite(radiusKm) && fitToken !== lastFitToken.current;
+      if (shouldFit) {
+        lastFitToken.current = fitToken;
+        const size = map.getSize();
+        const minPixels = Math.max(1, Math.min(size.x, size.y));
+        const maxDistanceKm = maxDistanceFromBoundsKm(center) || 100;
+        const percent = Math.max(1, Math.min(100, Number(radiusKm) || 1));
+        const effectiveRadiusKm = maxDistanceKm * (percent / 100);
+        const radiusMeters = Math.max(100, effectiveRadiusKm * 1000);
+        const metersPerPixel = (radiusMeters * 2) / minPixels;
+        const rawZoom = Math.log2(40075016.686 / (256 * metersPerPixel)) - 0.6;
+        const targetZoom = Math.max(3, Math.min(19, Math.round(rawZoom)));
+        if (onZoomChange && targetZoom !== zoom) onZoomChange(targetZoom);
+        map.flyTo(center, targetZoom, {
+          animate: true,
+          duration: 1.5,
+          easeLinearity: 0.25
+        });
+        return;
+      }
       map.flyTo(center, zoom, {
         animate: true,
-        duration: 1.5, // 1.5 seconds for smooth animation
+        duration: 1.5,
         easeLinearity: 0.25
       });
-    }
-  }, [center, zoom, map]);
+    });
+  }, [center, zoom, radiusKm, fitToken, map, onZoomChange]);
   
   return null;
 };

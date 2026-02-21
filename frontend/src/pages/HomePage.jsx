@@ -13,7 +13,10 @@ import {
 // Glassmorphism Navigation Component
 const Navigation = () => {
   const [isScrolled, setIsScrolled] = useState(false);
-  const [locationLabel, setLocationLabel] = useState('Detecting location...');
+  const [locationLabel, setLocationLabel] = useState(() => {
+    if (typeof navigator === 'undefined') return 'Detecting location...';
+    return navigator.geolocation ? 'Detecting location...' : 'Location unavailable';
+  });
 
   useEffect(() => {
     const handleScroll = () => {
@@ -26,7 +29,6 @@ const Navigation = () => {
   useEffect(() => {
     let isActive = true;
     if (!navigator.geolocation) {
-      setLocationLabel('Location unavailable');
       return () => {};
     }
 

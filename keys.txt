@@ -90,3 +90,102 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 # GOOGLE_CLIENT_SECRET=your-google-client-secret
 # FACEBOOK_APP_ID=your-facebook-app-id
 # FACEBOOK_APP_SECRET=your-facebook-app-secret
+
+
+
+
+#===================================================================
+
+
+# ======================================
+# PROJECT CREDENTIALS GUIDE
+# ======================================
+#
+# This file contains all the credentials used in the project.
+# To use these credentials:
+#
+# 1. BACKEND CREDENTIALS:
+#    - Copy the "BACKEND ENVIRONMENT VARIABLES" section below
+#    - Paste into: f:\Trae Projects\FinalPROJ\backend\.env
+#    - Replace placeholder values with your actual credentials
+#
+# 2. FRONTEND CREDENTIALS:
+#    - Copy the "FRONTEND ENVIRONMENT VARIABLES" section below
+#    - Paste into: f:\Trae Projects\FinalPROJ\frontend\.env
+#    - Replace placeholder values with your actual credentials
+#
+# 3. OPTIONAL SERVICES:
+#    - Uncomment and configure any optional services you want to use
+#    - These are not required for basic functionality
+#
+# ======================================
+# BACKEND ENVIRONMENT VARIABLES
+# ======================================
+
+# Server Configuration
+PORT=5000
+NODE_ENV=development
+
+# Database Configuration
+MONGODB_URI=mongodb://127.0.0.1:27017/khojhub
+SUPABASE_URL=https://qbimoqxwrcqamnghiear.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_SvrLb7ixNaT4n5NKZvpRhA_Mfcpz4Qf
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFiaW1vcXh3cmNxYW1uZ2hpZWFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4NzQ4ODIsImV4cCI6MjA4NjQ1MDg4Mn0.EV4ZIxOVFZwy4aL1kfUO8imV4S_tZ8Hb5p8SEHtvI1E
+
+# Authentication
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+JWT_EXPIRE=1d
+
+# Clerk Authentication (if using Clerk)
+CLERK_SECRET_KEY=sk_test_VH6VFEZpyW4tT7LnWiNGSx8dYZSA7cj7goelrA0ng7
+CLERK_PUBLISHABLE_KEY=pk_test_YXJ0aXN0aWMtYm94ZXItODYuY2xlcmsuYWNjb3VudHMuZGV2JA
+
+# Google Maps API
+GOOGLE_MAPS_API_KEY=your-google-maps-api-key
+
+# CORS Configuration
+CORS_ORIGIN=http://localhost:5173
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+
+# ======================================
+# FRONTEND ENVIRONMENT VARIABLES
+# ======================================
+
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_YXJ0aXN0aWMtYm94ZXItODYuY2xlcmsuYWNjb3VudHMuZGV2JA
+VITE_SUPABASE_URL=https://qbimoqxwrcqamnghiear.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_SvrLb7ixNaT4n5NKZvpRhA_Mfcpz4Qf
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFiaW1vcXh3cmNxYW1uZ2hpZWFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4NzQ4ODIsImV4cCI6MjA4NjQ1MDg4Mn0.EV4ZIxOVFZwy4aL1kfUO8imV4S_tZ8Hb5p8SEHtvI1E
+
+# ======================================
+# FRONTEND ENVIRONMENT VARIABLES
+# ======================================
+
+# Copy these to: f:\Trae Projects\FinalPROJ\frontend\.env
+
+# API Base URL (if different from default)
+# VITE_API_URL=http://localhost:5000/api/v1
+
+# Email Configuration (if using email services)
+# EMAIL_SERVICE=gmail
+# EMAIL_USER=your-email@gmail.com
+# EMAIL_PASS=your-app-password
+
+# Cloud Storage (if using AWS S3, etc.)
+# AWS_ACCESS_KEY_ID=your-aws-access-key
+# AWS_SECRET_ACCESS_KEY=your-aws-secret-key
+# AWS_REGION=your-region
+# S3_BUCKET_NAME=your-bucket-name
+
+# Payment Processing (if using Stripe, etc.)
+# STRIPE_PUBLISHABLE_KEY=pk_test_your-stripe-publishable-key
+# STRIPE_SECRET_KEY=sk_test_your-stripe-secret-key
+# STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
+
+# Social Media OAuth (if using social login)
+# GOOGLE_CLIENT_ID=your-google-client-id
+# GOOGLE_CLIENT_SECRET=your-google-client-secret
+# FACEBOOK_APP_ID=your-facebook-app-id
+# FACEBOOK_APP_SECRET=your-facebook-app-secret
