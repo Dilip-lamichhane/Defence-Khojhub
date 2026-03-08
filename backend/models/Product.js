@@ -59,6 +59,20 @@ const productSchema = new mongoose.Schema({
     type: Map,
     of: String
   },
+  moderationStatus: {
+    type: String,
+    enum: ['active', 'hidden', 'flagged'],
+    default: 'active',
+    index: true
+  },
+  moderationReason: {
+    type: String,
+    trim: true,
+    maxlength: 500
+  },
+  moderatedAt: {
+    type: Date
+  },
   isActive: {
     type: Boolean,
     default: true
@@ -89,5 +103,6 @@ productSchema.pre('save', function(next) {
 // Index for efficient querying
 productSchema.index({ shop: 1, category: 1, isActive: 1 });
 productSchema.index({ stockStatus: 1 });
+productSchema.index({ moderationStatus: 1, isActive: 1 });
 
 module.exports = mongoose.model('Product', productSchema);

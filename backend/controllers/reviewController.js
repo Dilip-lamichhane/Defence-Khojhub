@@ -133,7 +133,7 @@ const deleteReview = async (req, res) => {
     // Check authorization - author or shop owner or admin
     const isAuthor = review.author.toString() === userId;
     const isShopOwner = review.shop.owner.toString() === userId;
-    const isAdmin = req.user.role === 'admin';
+    const isAdmin = req.auth?.role === 'admin';
 
     if (!isAuthor && !isShopOwner && !isAdmin) {
       return res.status(403).json({ error: 'You are not authorized to delete this review' });

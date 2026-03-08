@@ -1,69 +1,48 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
+import { getActiveSupabaseProject, isDemoMode } from '../../config/supabase';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const initialSupabaseProject = getActiveSupabaseProject();
+const initialIsDemoMode = isDemoMode();
 
 // Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
+  timeout: 15000,
 });
-
-// Add token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Handle token expiration
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      // Don't redirect here, let the component handle it
-    }
-    return Promise.reject(error);
-  }
-);
 
 // Async thunks for Clerk integration
 export const syncUserWithBackend = createAsyncThunk(
   'auth/syncUserWithBackend',
-  async (clerkUser, { rejectWithValue }) => {
+  async ({ token }, { rejectWithValue }) => {
     try {
-      // Create or update user in our backend
-      const userData = {
-        clerkId: clerkUser.id,
-        email: clerkUser.emailAddresses[0]?.emailAddress,
-        username: clerkUser.username || clerkUser.emailAddresses[0]?.emailAddress.split('@')[0],
-        firstName: clerkUser.firstName,
-        lastName: clerkUser.lastName,
-        role: 'customer', // Default role
-      };
-
-      const response = await api.post('/auth/clerk-sync', userData);
-      const { token, user, role } = response.data;
-      
-      localStorage.setItem('token', token);
-      return { user: { ...user, role }, token };
+      const response = await api.post(
+        '/clerk-auth/clerk-sync',
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const { user } = response.data;
+      return { user };
     } catch (error) {
-      return rejectWithValue(error.response?.data?.error || 'Failed to sync user');
+      const details = error.response?.data?.details;
+      return rejectWithValue(details || error.response?.data?.error || 'Failed to sync user');
     }
   }
 );
 
 export const getProfile = createAsyncThunk(
   'auth/getProfile',
-  async (_, { rejectWithValue }) => {
+  async ({ token }, { rejectWithValue }) => {
     try {
-      const response = await api.get('/auth/profile');
+      const response = await api.get('/clerk-auth/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       return response.data.user;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.error || 'Failed to fetch profile');
+      const details = error.response?.data?.details;
+      return rejectWithValue(details || error.response?.data?.error || 'Failed to fetch profile');
     }
   }
 );
@@ -71,31 +50,38 @@ export const getProfile = createAsyncThunk(
 export const logout = createAsyncThunk(
   'auth/logout',
   async () => {
-    localStorage.removeItem('token');
     return null;
   }
 );
 
 export const updateRole = createAsyncThunk(
   'auth/updateRole',
-  async (role, { rejectWithValue }) => {
+  async ({ role, token }, { rejectWithValue }) => {
     try {
-      const response = await api.put('/auth/role', { role });
+      const response = await api.put(
+        '/auth/role',
+        { role },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       return response.data.user;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.error || 'Failed to update role');
+      const details = error.response?.data?.details;
+      return rejectWithValue(details || error.response?.data?.error || 'Failed to update role');
     }
   }
 );
 
 export const updateUserProfile = createAsyncThunk(
   'auth/updateUserProfile',
-  async (profileData, { rejectWithValue }) => {
+  async ({ profileData, token }, { rejectWithValue }) => {
     try {
-      const response = await api.put('/auth/profile', profileData);
+      const response = await api.put('/clerk-auth/profile', profileData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       return response.data.user;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.error || 'Failed to update profile');
+      const details = error.response?.data?.details;
+      return rejectWithValue(details || error.response?.data?.error || 'Failed to update profile');
     }
   }
 );
@@ -104,11 +90,12 @@ const authSlice = createSlice({
   name: 'auth',
   initialState: {
     user: null,
-    token: localStorage.getItem('token') || null,
     isLoading: false,
     error: null,
     isAuthenticated: false,
     clerkUser: null,
+    activeSupabaseProject: initialSupabaseProject,
+    isDemoMode: initialIsDemoMode,
   },
   reducers: {
     clearError: (state) => {
@@ -121,12 +108,14 @@ const authSlice = createSlice({
     setClerkUser: (state, action) => {
       state.clerkUser = action.payload;
     },
+    setSupabaseMode: (state, action) => {
+      state.activeSupabaseProject = action.payload?.project || state.activeSupabaseProject;
+      state.isDemoMode = Boolean(action.payload?.isDemoMode);
+    },
     clearAuth: (state) => {
       state.user = null;
-      state.token = null;
       state.isAuthenticated = false;
       state.clerkUser = null;
-      localStorage.removeItem('token');
     },
   },
   extraReducers: (builder) => {
@@ -139,7 +128,6 @@ const authSlice = createSlice({
       .addCase(syncUserWithBackend.fulfilled, (state, action) => {
         state.isLoading = false;
         state.user = action.payload.user;
-        state.token = action.payload.token;
         state.isAuthenticated = true;
         state.error = null;
       })
@@ -147,7 +135,6 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
         state.user = null;
-        state.token = null;
         state.isAuthenticated = false;
       })
       // Get Profile
@@ -165,13 +152,11 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload;
         state.user = null;
-        state.token = null;
         state.isAuthenticated = false;
       })
       // Logout
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
-        state.token = null;
         state.isAuthenticated = false;
         state.clerkUser = null;
         state.error = null;
@@ -207,5 +192,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError, setUser, setClerkUser, clearAuth } = authSlice.actions;
+export const { clearError, setUser, setClerkUser, setSupabaseMode, clearAuth } = authSlice.actions;
 export default authSlice.reducer;

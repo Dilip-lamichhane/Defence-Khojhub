@@ -1,135 +1,60 @@
-# 🎯 KhojHub - Location-Based Business Discovery Platform
+# 🧭 KhojHub - Local Business Discovery Platform
 
-**KhojHub** is a comprehensive location-based business discovery platform that connects customers with local businesses through radius-based search, real-time product availability, and community-driven reviews. Built with modern web technologies, it serves as a bridge between local businesses and their customers.
+KhojHub helps people find nearby shops and services, and helps shopkeepers list their businesses, products, and hours. It combines a modern web app with geospatial search so customers can explore shops on a map and shopkeepers can manage their catalog. ✨
 
-## 🚀 Live Demo
-- **Frontend**: http://localhost:5173/ (Home)
-- **Map (Leaflet + Supabase)**: http://localhost:5173/map
-- **Admin Portal**: http://localhost:5173/admin
-- **Backend API**: http://localhost:5000/api/v1/health
-- **Development**: Run frontend + backend in separate terminals
+## 🎯 Project Aim
+- Connect local customers with verified businesses nearby.
+- Provide a simple way for shopkeepers to register, manage products, and update hours.
+- Offer map-based discovery with category filters and quick directions.
 
-## ✨ Key Features
+## ✅ What You Can Do
+### 🧍 For Customers
+- Explore nearby businesses on a map.
+- Filter by category and search by product.
+- View shop details, catalogs, and ratings.
 
-### 🔍 Smart Business Discovery
-- **Radius-Based Search**: Find businesses within your specified distance
-- **Category Filtering**: Browse by business categories (Restaurants, Electronics, Fitness, etc.)
-- **Geospatial Intelligence**: Location-aware recommendations using PostGIS
-- **Product Availability Search (Supabase)**: Search a product and only shops that carry it show on the map
+### 🏪 For Shopkeepers
+- Register a business.
+- Manage products and availability.
+- Update shop hours and basic info.
 
-### 🏪 Business Management
-- **Shop Registration**: Complete business profile setup with location
-- **Product Catalog**: Comprehensive product management system
-- **Business Hours**: Flexible scheduling with weekly availability
-- **Verification System**: Trust badges for verified businesses
-- **Media Gallery**: Logo and image uploads for visual branding
+### 🛡️ For Admins
+- Review business submissions.
+- Monitor platform activity.
 
-### ⭐ Customer Engagement
-- **Review System**: 5-star rating with detailed feedback
-- **Photo Reviews**: Image attachments for authentic reviews
-- **Rating Aggregation**: Automatic average rating calculations
-- **Community Features**: User-generated content and interactions
+## 🧰 Tech Stack (Simple Summary)
+- Frontend: React + Vite + Tailwind CSS 🧩
+- Backend: Node.js + Express 🛠️
+- Auth: Clerk 🔑
+- Databases:
+  - MongoDB (core app data) 🗄️
+  - Supabase/Postgres + PostGIS (geospatial + map data) 🌍
 
-### 🎨 Modern User Interface
-- **Dark/Light Theme**: Complete theme toggle with system detection
-- **Responsive Design**: Mobile-first approach with Tailwind CSS
-- **Admin Dashboard**: shadcn-admin inspired modern interface
-- **Loading States**: Smooth transitions and loading indicators
-- **Accessibility**: ARIA labels and keyboard navigation support
-- **Catalog Sidebar (Map)**: Click a shop marker → view that shop’s catalog and search within it
+## 🔗 Quick Links (Local)
+- Frontend: http://localhost:5173/ 🖥️
+- Map: http://localhost:5173/map 🗺️
+- Admin: http://localhost:5173/admin 🧑‍⚖️
+- API Health: http://localhost:5000/api/v1/health ❤️
 
-### 🔐 Security & Authentication
-- **Clerk Integration**: Enterprise-grade authentication system
-- **JWT Tokens**: Secure token-based authentication
-- **Role-Based Access**: User, Shopkeeper, and Admin roles
-- **Input Validation**: Server-side validation with express-validator
-- **CORS Protection**: Proper cross-origin request handling
-
-## 🏗️ Technology Stack
-
-### Frontend Architecture
+## 📥 Download / Clone
+1. Install Git from https://git-scm.com
+2. Open a terminal and run:
 ```
-React 19.2.0 + Vite → Redux Toolkit → Tailwind CSS → Clerk Auth
+git clone <your-repo-url>
+cd minor-project1
 ```
 
-**Core Technologies:**
-- **React 19.2.0**: Modern functional components with hooks
-- **Redux Toolkit**: Predictable state management with async thunks
-- **Tailwind CSS 4.1.18**: Utility-first CSS framework
-- **Vite**: Lightning-fast build tool and dev server
-- **Clerk**: Complete authentication solution
-- **Leaflet**: Implemented map for `/map` (Supabase shops + catalog)
-- **Google Maps**: Planned/partial integration for advanced geospatial features
-- **Recharts**: Data visualization and analytics charts
-- **Lucide React**: Beautiful icon library
+## 🧑‍💻 Setup Guide (Beginner Friendly)
+### 1️⃣ Install Requirements
+- Node.js (v18+): https://nodejs.org 🟢
+- MongoDB (local) or MongoDB Atlas account 🧱
+- Supabase account: https://supabase.com 🧭
+- Clerk account: https://clerk.com 🔐
+- Google Maps API key (optional, only for Google Maps view) 🗺️
 
-### Backend Architecture
+### 2️⃣ Install Dependencies
 ```
-Node.js + Express.js → MongoDB + Mongoose → JWT Auth → Supabase
-```
-
-**Core Technologies:**
-- **Node.js**: JavaScript runtime environment
-- **Express.js 5.2.1**: Minimal web application framework
-- **MongoDB**: Primary NoSQL database with geospatial support
-- **Mongoose**: Elegant MongoDB object modeling
-- **Supabase**: Secondary PostgreSQL database with PostGIS
-- **JWT**: JSON Web Token authentication
-- **bcrypt**: Password hashing and security
-- **Express-validator**: Input validation middleware
-
-### Database Design
-
-#### MongoDB Collections
-- **Users**: Complete user profiles with authentication
-- **Shops**: Business information with 2dsphere geospatial indexing
-- **Products**: Catalog items with pricing and availability
-- **Reviews**: Customer feedback with ratings and photos
-- **Categories**: Business categorization system
-
-#### Supabase Tables (PostGIS Enabled)
-- **shops**: Business data with geographic coordinates
-- **products**: Product catalog with foreign key relationships
-- **Spatial Indexing**: PostGIS geography point data type
-- **Foreign Keys**: Proper referential integrity constraints
-
-## 📊 Data Statistics
-
-### Seeded Database (Ready for Testing)
-- **50 Shops** across 5 business categories
-- **~500 Products** total (**10–15 items per shop**, variable)
-- **Categories**: Restaurant, Electronics, Fitness, Health/Medicine, Automobile
-- **Catalog realism**: ~70% items common within category + some unique/rare per shop
-- **Geographic Coverage**: Demo coordinates around Lalitpur/Kathmandu area
-- **PostGIS Integration**: Full spatial data support with radius queries
-
-### Sample Business Categories
-1. **Restaurants**: The Lazy Griller, Newari Dhaba
-2. **Electronics**: Delta Tech Store, Smartcare Home Appliances  
-3. **Fitness**: Iron Temple Gym & Shop, Zen Yoga Studio
-4. **Health**: Nepal Pharma Distributors, Herbal Life Store
-5. **Automobile**: Mahindra Auto Parts, Hero Bike Zone
-
-## 🚀 Quick Start Guide
-
-### Prerequisites
-- Node.js (v18 or higher)
-- MongoDB (local or cloud)
-- Supabase account (for PostGIS features)
-- Google Maps API key
-- Clerk account for authentication
-
-### Installation & Setup
-
-1. **Clone the repository**
-```bash
-git clone https://github.com/Dilip-lamichhane/DEFENCE.git
-cd DEFENCE
-```
-
-2. **Install dependencies**
-```bash
-# Root (seeder utilities)
+# Root utilities
 npm install
 
 # Backend
@@ -141,117 +66,54 @@ cd ../frontend
 npm install
 ```
 
-3. **Environment Configuration**
-```bash
-# Frontend (.env in frontend/)
-VITE_CLERK_PUBLISHABLE_KEY=your_clerk_key
-VITE_GOOGLE_MAPS_API_KEY=your_google_maps_key
-VITE_API_URL=http://localhost:5000/api/v1
-
-# Backend (.env in backend/)
-MONGODB_URI=your_mongodb_connection
-JWT_SECRET=your_jwt_secret
-CLERK_SECRET_KEY=your_clerk_secret
-SUPABASE_URL=your_supabase_url
-SUPABASE_ANON_KEY=your_supabase_key
+### 3️⃣ Create Environment Files
+Copy the example files and fill in your credentials.
 ```
-
-4. **Database Setup**
-```bash
-# Verify Supabase schema exists (runs against your Supabase project)
-cd ..
-node check-schema.js
-
-# Seed Supabase with shops + products (50 shops, ~500 products)
-npm run seed
+copy backend\.env.example backend\.env
+copy frontend\.env.example frontend\.env
 ```
+Fill in the values in the new .env files. See keys.txt for a full list of required variables.
 
-5. **Start Development Servers**
-```bash
-# Backend (http://localhost:5000)
+### 4️⃣ Supabase Schema
+Open your Supabase SQL editor and run:
+```
+supabase/schema-fix.sql
+```
+Run it in both REAL and DUMMY projects if you use both.
+
+### 5️⃣ Start the App
+```
+# Backend
 cd backend
 npm run dev
 
-# Frontend (http://localhost:5173)
+# Frontend
 cd ../frontend
 npm run dev
 ```
 
-## 🎯 Development Workflow
+## 🧭 How to Use (Non‑Developer Friendly)
+1. Open http://localhost:5173
+2. Sign in with Clerk.
+3. Explore the map or register a business.
+4. If you are a shopkeeper, open the shop dashboard to manage products.
 
-### Frontend Development
-- **Hot Reload**: Instant code changes without page refresh
-- **Component Architecture**: Modular, reusable React components
-- **State Management**: Redux with proper action/reducer patterns
-- **Styling**: Tailwind CSS with custom component classes
-- **Build Optimization**: Vite with tree shaking and code splitting
+## ⚙️ Configuration Notes
+- Project switching:
+  - Backend: ACTIVE_SUPABASE_PROJECT=REAL or DUMMY
+  - Frontend: VITE_ACTIVE_SUPABASE_PROJECT=REAL or DUMMY
+- If Google Maps is not needed, you can leave VITE_GOOGLE_MAPS_API_KEY empty.
 
-### Backend Development
-- **API Design**: RESTful endpoints with proper HTTP methods
-- **Error Handling**: Comprehensive error responses and logging
-- **Validation**: Server-side input validation with detailed messages
-- **Database Queries**: Optimized MongoDB queries with indexing
-- **Security**: JWT authentication with role-based access control
+## 🧯 Troubleshooting
+- Map empty: verify Supabase schema and RLS policies, then reload. 🧭
+- Auth issues: confirm Clerk keys and JWT template named "supabase" (HS256, signed with Supabase JWT secret). 🔑
+- “Category column” errors: run supabase/schema-fix.sql again. 🧩
 
-### Database Management
-- **MongoDB**: Primary database for application data
-- **Supabase**: Secondary database for geospatial features
-- **Seeding**: Automated data seeding for development/testing
-- **Migration**: Schema versioning and migration scripts
-- **Backup**: Regular database backup procedures
+## 🔐 Security Notes
+Never commit real secrets. Use .env files locally and keep them out of git.
 
-## 🔧 API Endpoints
-
-### Authentication
-- `POST /api/v1/auth/register` - User registration
-- `POST /api/v1/auth/login` - User login
-- `GET /api/v1/auth/profile` - Get user profile
-- `PUT /api/v1/auth/profile` - Update user profile
-
-### Shops
-- `GET /api/v1/shops` - Get all shops
-- `GET /api/v1/shops/search` - Search shops by location/radius
-- `GET /api/v1/shops/:id` - Get shop details
-- `POST /api/v1/shops` - Create new shop
-- `PUT /api/v1/shops/:id` - Update shop information
-
-### Products
-- `GET /api/v1/products` - Get all products
-- `GET /api/v1/products/shop/:shopId` - Get shop products
-- `POST /api/v1/products` - Create new product
-- `PUT /api/v1/products/:id` - Update product
-- `DELETE /api/v1/products/:id` - Delete product
-
-### Reviews
-- `GET /api/v1/reviews/shop/:shopId` - Get shop reviews
-- `POST /api/v1/reviews` - Create new review
-- `PUT /api/v1/reviews/:id` - Update review
-- `DELETE /api/v1/reviews/:id` - Delete review
-
-### Supabase (Shops + Products)
-- `GET /api/v1/supabase/health` - Supabase connectivity check
-- `GET /api/v1/supabase/shops` - Get Supabase shops
-  - Query params: `limit`, `offset`, `category`, `product`
-  - Example: `/api/v1/supabase/shops?product=thermometer`
-- `GET /api/v1/supabase/shops/:shopId/products` - Get catalog for a Supabase shop
-  - Query param: `q` (optional search inside the shop catalog)
-  - Example: `/api/v1/supabase/shops/12/products?q=mask`
-
-## 🎨 UI Components
-
-### Custom Components
-- **ThemeToggle**: Dark/light mode switcher
-- **SearchBar**: Location and keyword search
-- **ShopCard**: Business display card with ratings
-- **RatingStars**: Interactive star rating component
-- **MapComponent**: Google Maps integration
-- **LoadingSpinner**: Loading state indicator
-- **ProtectedRoute**: Route authentication guard
-
-### Admin Dashboard Components
-- **Analytics Cards**: Revenue and user statistics
-- **Charts**: Line charts, area charts, pie charts
-- **Data Tables**: Sortable and filterable tables
+## 🤝 Contributing
+See update.txt for developer notes and contribution guidelines.
 - **Action Buttons**: CRUD operation buttons
 - **Status Indicators**: Online/offline badges
 

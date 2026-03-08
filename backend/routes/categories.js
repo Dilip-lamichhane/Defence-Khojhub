@@ -93,8 +93,8 @@ router.get('/hierarchy', getCategoryHierarchyValidation, getCategoryHierarchy);
 router.get('/:id', param('id').isMongoId().withMessage('Valid category ID is required'), getCategoryById);
 
 // Protected routes - admin only
-router.post('/', authenticate, authorize(['admin']), createCategoryValidation, createCategory);
-router.put('/:id', authenticate, authorize(['admin']), updateCategoryValidation, updateCategory);
-router.delete('/:id', authenticate, authorize(['admin']), param('id').isMongoId().withMessage('Valid category ID is required'), deleteCategory);
+router.post('/', authenticate, authorize('admin'), createCategoryValidation, createCategory);
+router.put('/:id', authenticate, authorize('admin'), updateCategoryValidation, updateCategory);
+router.delete('/:id', authenticate, authorize('admin'), param('id').isMongoId().withMessage('Valid category ID is required'), deleteCategory);
 
 module.exports = router;

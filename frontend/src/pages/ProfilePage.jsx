@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { updateUserProfile } from '../store/slices/authSlice';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const ProfilePage = () => {
   const dispatch = useAppDispatch();
+  const { getToken } = useAuth();
   const { user, loading, error } = useAppSelector((state) => state.auth);
   
   const [isEditing, setIsEditing] = useState(false);
@@ -40,7 +42,9 @@ const ProfilePage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await dispatch(updateUserProfile(formData)).unwrap();
+      const token = await getToken();
+      if (!token) return;
+      await dispatch(updateUserProfile({ profileData: formData, token })).unwrap();
       setIsEditing(false);
       setDraftFormData(null);
     } catch (error) {

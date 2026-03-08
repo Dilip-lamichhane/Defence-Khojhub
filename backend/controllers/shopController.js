@@ -3,6 +3,38 @@ const User = require('../models/User');
 const Product = require('../models/Product');
 const Review = require('../models/Review');
 const { validationResult } = require('express-validator');
+const { getSupabaseClient } = require('../config/supabase');
+
+const toRadians = (value) => (value * Math.PI) / 180;
+
+const haversineKm = (from, to) => {
+  if (!from || !to) return 0;
+  const [lat1, lon1] = from;
+  const [lat2, lon2] = to;
+  const dLat = toRadians(lat2 - lat1);
+  const dLon = toRadians(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return 6371 * c;
+};
+
+const mapSupabaseShopRow = (row, distanceKm) => ({
+  _id: `sb_${row.id}`,
+  name: row.name,
+  description: null,
+  address: row.address || null,
+  phone: row.phone || null,
+  averageRating: 0,
+  reviewCount: 0,
+  category: row.category ? { name: row.category } : undefined,
+  location: {
+    type: 'Point',
+    coordinates: [Number(row.longitude), Number(row.latitude)]
+  },
+  distance: distanceKm
+});
 
 // Create a new shop
 const createShop = async (req, res) => {
@@ -24,6 +56,7 @@ const createShop = async (req, res) => {
       name,
       description,
       category,
+      status: 'pending',
       location: {
         type: 'Point',
         coordinates: location.coordinates
@@ -53,7 +86,13 @@ const searchShops = async (req, res) => {
     const { lat, lng, radius = 10, category, minRating = 0, page = 1, limit = 20 } = req.query;
 
     // Build query
-    let query = { isActive: true };
+    let query = { 
+      isActive: true,
+      $or: [
+        { status: 'approved' },
+        { status: { $exists: false }, verified: true }
+      ]
+    };
 
     // Geospatial search
     if (lat && lng) {
@@ -84,6 +123,51 @@ const searchShops = async (req, res) => {
 
     const total = await Shop.countDocuments(query);
 
+    if (shops.length === 0 && lat && lng) {
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const normalizedCategory = category ? String(category) : '';
+        let supabaseQuery = supabase
+          .from('shops')
+          .select('id, name, latitude, longitude, category, status, address, phone')
+          .eq('status', 'approved');
+
+        if (normalizedCategory) {
+          supabaseQuery = supabaseQuery.eq('category', normalizedCategory);
+        }
+
+        const { data, error } = await supabaseQuery.limit(5000);
+
+        if (!error && data) {
+          const origin = [Number(lat), Number(lng)];
+          const radiusKm = Number(radius) || 10;
+          const filtered = data
+            .map((row) => {
+              const latNum = Number(row.latitude);
+              const lngNum = Number(row.longitude);
+              if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return null;
+              const distanceKm = haversineKm(origin, [latNum, lngNum]);
+              if (distanceKm > radiusKm) return null;
+              return mapSupabaseShopRow(row, distanceKm);
+            })
+            .filter(Boolean)
+            .sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
+
+          const safeLimit = Number(limit) || 20;
+          const safePage = Number(page) || 1;
+          const start = (safePage - 1) * safeLimit;
+          const paginated = filtered.slice(start, start + safeLimit);
+
+          return res.json({
+            shops: paginated,
+            totalPages: Math.ceil(filtered.length / safeLimit),
+            currentPage: safePage,
+            total: filtered.length
+          });
+        }
+      }
+    }
+
     res.json({
       shops,
       totalPages: Math.ceil(total / limit),
@@ -101,7 +185,14 @@ const getShopDetails = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const shop = await Shop.findOne({ _id: id, isActive: true })
+    const shop = await Shop.findOne({ 
+      _id: id, 
+      isActive: true,
+      $or: [
+        { status: 'approved' },
+        { status: { $exists: false }, verified: true }
+      ]
+    })
       .populate('owner', 'username email')
       .populate('category', 'name color');
 

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "url": "https://mcp.supabase.com/mcp?project_ref=wiaqtwmprwqxmyfptgsg&features=docs%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching%2Cstorage",
+      
+      "headers": {
+        "Authorization": "Bearer sbp_fe5213fd2b61aa15ce582a5e20cd3cb7982ffd87"
+      }
+    }
+  }
+}

@@ -7,11 +7,17 @@ import {
   SignedIn, 
   SignedOut, 
   SignInButton, 
-  UserButton
+  UserButton,
+  useAuth,
+  useUser
 } from '@clerk/clerk-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 // Glassmorphism Navigation Component
 const Navigation = () => {
+  const { user: backendUser } = useAppSelector((state) => state.auth);
+  const role = backendUser?.role;
   const [isScrolled, setIsScrolled] = useState(false);
   const [locationLabel, setLocationLabel] = useState(() => {
     if (typeof navigator === 'undefined') return 'Detecting location...';
@@ -38,12 +44,7 @@ const Navigation = () => {
         let label = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
         try {
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-            {
-              headers: {
-                'Accept-Language': 'en'
-              }
-            }
+            `${API_BASE_URL}/geocode/reverse?lat=${latitude}&lon=${longitude}`
           );
           if (response.ok) {
             const data = await response.json();
@@ -130,17 +131,27 @@ const Navigation = () => {
             </SignedOut>
             <SignedIn>
               <Link 
-                to="/shopkeeper" 
+                to="/map" 
                 className="text-gray-700 hover:text-blue-600 font-medium px-4 py-2 rounded-xl hover:bg-white/60 backdrop-blur-sm transition-all duration-200"
               >
-                Shopkeeper Portal
+                Map
               </Link>
-              <Link 
-                to="/admin" 
-                className="text-gray-700 hover:text-blue-600 font-medium px-4 py-2 rounded-xl hover:bg-white/60 backdrop-blur-sm transition-all duration-200"
-              >
-                Admin Portal
-              </Link>
+              {(role === 'shopowner' || role === 'shopkeeper') && (
+                <Link 
+                  to="/shop" 
+                  className="text-gray-700 hover:text-blue-600 font-medium px-4 py-2 rounded-xl hover:bg-white/60 backdrop-blur-sm transition-all duration-200"
+                >
+                  My Shop
+                </Link>
+              )}
+              {role === 'admin' && (
+                <Link 
+                  to="/admin" 
+                  className="text-gray-700 hover:text-blue-600 font-medium px-4 py-2 rounded-xl hover:bg-white/60 backdrop-blur-sm transition-all duration-200"
+                >
+                  Admin Portal
+                </Link>
+              )}
               <UserButton 
                 appearance={{
                   elements: {
@@ -285,7 +296,7 @@ const MapPreviewSection = ({ selectedRadius }) => {
         
         <div className="relative bg-linear-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-3xl p-8 shadow-2xl border border-gray-100">
           {/* Map Placeholder */}
-          <div className="relative h-96 lg:h-[500px] bg-linear-to-br from-blue-100/50 via-purple-100/50 to-pink-100/50 rounded-2xl overflow-hidden border border-white/50">
+          <div className="relative h-96 lg:h-125 bg-linear-to-br from-blue-100/50 via-purple-100/50 to-pink-100/50 rounded-2xl overflow-hidden border border-white/50">
             {/* Animated Grid */}
             <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
             
@@ -545,6 +556,153 @@ const FeaturedShops = ({ shops, loading }) => {
 
 // Conversion Footer
 const ConversionFooter = () => {
+  const { user, isLoaded, isSignedIn } = useUser();
+  const { getToken } = useAuth();
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState(null);
+  const [formSuccess, setFormSuccess] = useState(null);
+  const [hasManualCoords, setHasManualCoords] = useState(false);
+  const [locationAccuracy, setLocationAccuracy] = useState(null);
+  const [locationStatus, setLocationStatus] = useState(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    latitude: '',
+    longitude: '',
+    email: '',
+    phone: '',
+    panNumber: ''
+  });
+
+  useEffect(() => {
+    if (isLoaded && user?.primaryEmailAddress?.emailAddress) {
+      setFormData((prev) => ({
+        ...prev,
+        email: user.primaryEmailAddress.emailAddress
+      }));
+    }
+  }, [isLoaded, user]);
+
+  const detectLocation = (allowOverride = false) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setLocationStatus('Location unavailable. Please enter coordinates manually.');
+      return;
+    }
+
+    if (!allowOverride && hasManualCoords) return;
+
+    setLocationStatus('Detecting your current location...');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        setLocationAccuracy(Number.isFinite(accuracy) ? Math.round(accuracy) : null);
+        setLocationStatus('Location detected. You can adjust the coordinates if needed.');
+        setFormData((prev) => ({
+          ...prev,
+          latitude: allowOverride ? latitude.toFixed(6) : prev.latitude || latitude.toFixed(6),
+          longitude: allowOverride ? longitude.toFixed(6) : prev.longitude || longitude.toFixed(6)
+        }));
+      },
+      () => {
+        setLocationStatus('Unable to detect location. Please enter coordinates manually.');
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 12000,
+        maximumAge: 0
+      }
+    );
+  };
+
+  useEffect(() => {
+    if (!isRegisterOpen) return;
+    if (formData.latitude && formData.longitude) return;
+    detectLocation(false);
+  }, [isRegisterOpen, formData.latitude, formData.longitude]);
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    if (name === 'latitude' || name === 'longitude') {
+      setHasManualCoords(true);
+      setLocationStatus('Coordinates updated manually.');
+    }
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setFormError(null);
+    setFormSuccess(null);
+
+    const token = await getToken();
+    if (!token) {
+      setFormError('Please sign in before registering a business.');
+      return;
+    }
+
+    const lat = Number(formData.latitude);
+    const lng = Number(formData.longitude);
+    if (!formData.name.trim()) {
+      setFormError('Shop name is required.');
+      return;
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      setFormError('Latitude and longitude are required.');
+      return;
+    }
+    if (!formData.phone.trim()) {
+      setFormError('Phone is required.');
+      return;
+    }
+    if (!formData.panNumber.trim()) {
+      setFormError('PAN number is required.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const projectHeader = (import.meta.env.VITE_ACTIVE_SUPABASE_PROJECT || 'REAL').toUpperCase();
+      const response = await fetch(`${API_BASE_URL}/supabase/shops/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'x-supabase-project': projectHeader
+        },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          latitude: lat,
+          longitude: lng,
+          phone: formData.phone.trim(),
+          panNumber: formData.panNumber.trim()
+        })
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to register shop');
+      }
+
+      setFormSuccess('Submission received. Pending admin review.');
+      setIsRegisterOpen(false);
+      setHasManualCoords(false);
+      setLocationAccuracy(null);
+      setLocationStatus(null);
+      setFormData({
+        name: '',
+        latitude: '',
+        longitude: '',
+        email: user?.primaryEmailAddress?.emailAddress || '',
+        phone: '',
+        panNumber: ''
+      });
+    } catch (err) {
+      setFormError(err?.message || 'Failed to register shop');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <footer className="bg-gray-900 text-white py-20 relative overflow-hidden">
       <div className="absolute inset-0 bg-linear-to-br from-gray-800 to-gray-900 opacity-90"></div>
@@ -558,7 +716,7 @@ const ConversionFooter = () => {
             Join thousands of local businesses already using KhojHub to connect with customers and boost their sales. Start your journey today!
           </p>
           
-          <div className="flex flex-col sm:flex-row gap-6 justify-center mb-16">
+          <div className="flex flex-col sm:flex-row gap-6 justify-center mb-6">
             <SignedOut>
               <SignInButton mode="modal">
                 <button className="bg-white text-blue-600 px-8 py-4 rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300">
@@ -575,17 +733,155 @@ const ConversionFooter = () => {
               <button className="bg-white text-blue-600 px-8 py-4 rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300">
                 Discover Nearby Shops
               </button>
-              <button className="border-2 border-white text-white px-8 py-4 rounded-2xl font-bold hover:bg-white hover:text-blue-600 transition-all duration-300 text-lg">
+              <button
+                className="border-2 border-white text-white px-8 py-4 rounded-2xl font-bold hover:bg-white hover:text-blue-600 transition-all duration-300 text-lg"
+                onClick={() => setIsRegisterOpen(true)}
+              >
                 Register Your Business
               </button>
             </SignedIn>
           </div>
+
+          {(formError || formSuccess) && (
+            <div className="mt-4 text-sm">
+              {formError && <div className="text-red-200">{formError}</div>}
+              {formSuccess && <div className="text-green-200">{formSuccess}</div>}
+            </div>
+          )}
           
           <div className="border-t border-gray-800 pt-8">
             <p className="text-gray-400">&copy; 2024 KhojHub. All rights reserved.</p>
           </div>
         </div>
       </div>
+
+      {isSignedIn && isRegisterOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white p-8 text-left text-gray-900 shadow-2xl">
+            <div className="mb-6 flex items-start justify-between">
+              <div>
+                <h3 className="text-2xl font-bold">Register Your Business</h3>
+                <p className="text-sm text-gray-500">Submit your shop details for approval.</p>
+              </div>
+              <button
+                className="rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-600 hover:bg-gray-200"
+                onClick={() => {
+                  setIsRegisterOpen(false);
+                  setHasManualCoords(false);
+                  setLocationAccuracy(null);
+                  setLocationStatus(null);
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium text-gray-700">Shop name</label>
+                <input
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
+                  placeholder="e.g., Sunrise Bakery"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Latitude</label>
+                <input
+                  name="latitude"
+                  type="number"
+                  step="0.000001"
+                  value={formData.latitude}
+                  onChange={handleChange}
+                  className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
+                  placeholder="27.7172"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Longitude</label>
+                <input
+                  name="longitude"
+                  type="number"
+                  step="0.000001"
+                  value={formData.longitude}
+                  onChange={handleChange}
+                  className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
+                  placeholder="85.3240"
+                  required
+                />
+              </div>
+              <div className="md:col-span-2 flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHasManualCoords(false);
+                      detectLocation(true);
+                    }}
+                    className="rounded-lg bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-200"
+                  >
+                    Use current location
+                  </button>
+                  {locationAccuracy !== null && (
+                    <span className="text-xs text-gray-500">Accuracy ~{locationAccuracy}m</span>
+                  )}
+                </div>
+                {locationStatus && (
+                  <p className="text-xs text-gray-500">{locationStatus}</p>
+                )}
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Email</label>
+                <input
+                  name="email"
+                  value={formData.email}
+                  readOnly
+                  className="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Phone</label>
+                <input
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
+                  placeholder="+91 98765 43210"
+                  required
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium text-gray-700">PAN number</label>
+                <input
+                  name="panNumber"
+                  value={formData.panNumber}
+                  onChange={handleChange}
+                  className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
+                  placeholder="ABCDE1234F"
+                  required
+                />
+              </div>
+              <div className="md:col-span-2 flex flex-col gap-3">
+                {formError && <div className="text-sm text-red-600">{formError}</div>}
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {isSubmitting ? 'Submitting...' : 'Submit for Approval'}
+                </button>
+                <p className="text-xs text-gray-500 text-center">
+                  Your submission will appear in the Admin Portal for review.
+                </p>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </footer>
   );
 };

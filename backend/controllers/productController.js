@@ -194,7 +194,7 @@ const updateProduct = async (req, res) => {
     }
 
     // Check if user owns the shop or is admin
-    if (product.shop.owner.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (product.shop.owner.toString() !== req.user.id && req.auth?.role !== 'admin') {
       return res.status(403).json({ 
         error: 'You do not have permission to update this product' 
       });
@@ -237,7 +237,7 @@ const deleteProduct = async (req, res) => {
     }
 
     // Check if user owns the shop or is admin
-    if (product.shop.owner.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (product.shop.owner.toString() !== req.user.id && req.auth?.role !== 'admin') {
       return res.status(403).json({ 
         error: 'You do not have permission to delete this product' 
       });
@@ -279,7 +279,7 @@ const updateStock = async (req, res) => {
     }
 
     // Check if user owns the shop or is admin
-    if (product.shop.owner.toString() !== req.user.id && req.user.role !== 'admin') {
+    if (product.shop.owner.toString() !== req.user.id && req.auth?.role !== 'admin') {
       return res.status(403).json({ 
         error: 'You do not have permission to update this product' 
       });

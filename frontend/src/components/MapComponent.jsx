@@ -18,7 +18,9 @@ const MapComponent = ({ shops, onShopSelect, className = '' }) => {
     radiusCircle,
     selectedShop 
   } = useAppSelector((state) => state.map);
+  const { activeSupabaseProject, isDemoMode } = useAppSelector((state) => state.auth);
   
+
   const mapRef = useRef(null);
   const markersRef = useRef([]);
   const [mapLoading, setMapLoading] = useState(true);
@@ -27,12 +29,32 @@ const MapComponent = ({ shops, onShopSelect, className = '' }) => {
   // Load Google Maps script
   useEffect(() => {
     const loadGoogleMaps = () => {
+      if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
+        setMapLoading(false);
+        setMapError('Google Maps API key is missing');
+        return;
+      }
+
       if (window.google && window.google.maps) {
         setMapLoading(false);
         return;
       }
 
+      const existingScript = document.getElementById('google-maps-sdk');
+      if (existingScript) {
+        existingScript.addEventListener('load', () => {
+          setMapLoading(false);
+          setMapError(null);
+        });
+        existingScript.addEventListener('error', () => {
+          setMapLoading(false);
+          setMapError('Failed to load Google Maps');
+        });
+        return;
+      }
+
       const script = document.createElement('script');
+      script.id = 'google-maps-sdk';
       script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places`;
       script.async = true;
       script.defer = true;
@@ -51,12 +73,6 @@ const MapComponent = ({ shops, onShopSelect, className = '' }) => {
     };
 
     loadGoogleMaps();
-
-    return () => {
-      // Cleanup script if needed
-      const scripts = document.querySelectorAll('script[src*="googleapis.com/maps"]');
-      scripts.forEach(script => script.remove());
-    };
   }, []);
 
   // Initialize map
@@ -208,8 +224,15 @@ const MapComponent = ({ shops, onShopSelect, className = '' }) => {
   return (
     <div className={`relative ${className}`}>
       <div ref={mapRef} className="w-full h-full" />
+
+      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-semibold border">
+        <span className={isDemoMode ? 'text-amber-700' : 'text-emerald-700'}>
+          {isDemoMode ? 'Demo DB' : 'Real DB'} · {activeSupabaseProject}
+        </span>
+      </div>
       
       {/* Map Controls */}
+
       <div className="absolute top-4 right-4 space-y-2">
         <button
           onClick={centerOnUserLocation}
@@ -248,7 +271,8 @@ const MapComponent = ({ shops, onShopSelect, className = '' }) => {
 
       {/* Radius Info */}
       {showRadius && userLocation.lat && (
-        <div className="absolute top-4 left-4 bg-white p-3 rounded-lg shadow-md">
+        <div className="absolute top-14 left-4 bg-white p-3 rounded-lg shadow-md">
+
           <div className="text-sm text-gray-600">
             <div className="font-medium">Search Radius</div>
             <div>{searchRadius} km</div>

@@ -1,50 +1,9 @@
-const { validationResult } = require('express-validator');
 const { User } = require('../models');
-const { generateToken } = require('../middleware/auth');
+const { getSupabaseAdminClient } = require('../config/supabase');
 
 const register = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { username, email, password, role } = req.body;
-
-    // Check if user already exists
-    const existingUser = await User.findOne({ 
-      $or: [{ email }, { username }] 
-    });
-
-    if (existingUser) {
-      return res.status(400).json({ 
-        error: 'User already exists with this email or username' 
-      });
-    }
-
-    // Create new user
-    const user = new User({
-      username,
-      email,
-      password,
-      role: role || 'customer'
-    });
-
-    await user.save();
-
-    // Generate token
-    const token = generateToken(user._id);
-
-    res.status(201).json({
-      message: 'User registered successfully',
-      token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role
-      }
-    });
+    res.status(403).json({ error: 'Clerk authentication is required' });
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ 
@@ -56,43 +15,7 @@ const register = async (req, res) => {
 
 const login = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { email, password } = req.body;
-
-    // Find user by email
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    // Check if account is active
-    if (!user.isActive) {
-      return res.status(401).json({ error: 'Account is deactivated' });
-    }
-
-    // Check password
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    // Generate token
-    const token = generateToken(user._id);
-
-    res.json({
-      message: 'Login successful',
-      token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role
-      }
-    });
+    res.status(403).json({ error: 'Clerk authentication is required' });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ 
@@ -104,19 +27,55 @@ const login = async (req, res) => {
 
 const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
-    if (!user) {
+    const clerkId = req.auth?.clerkId;
+    if (!clerkId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const supabase = getSupabaseAdminClient();
+    if (!supabase) {
+      return res.status(500).json({ error: 'Supabase is not configured' });
+    }
+
+    const { data: supabaseUser, error } = await supabase
+      .from('users')
+      .select('id, clerk_id, email, role, created_at')
+      .eq('clerk_id', clerkId)
+      .maybeSingle();
+
+    if (error || !supabaseUser) {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const mongoUser = await User.findOne({ clerkId }).select('-password');
+    const usernameFallback = String(supabaseUser.email || '').split('@')[0] || `user${Date.now()}`;
+
     res.json({
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        createdAt: user.createdAt
-      }
+      user: mongoUser
+        ? {
+            _id: mongoUser._id,
+            id: supabaseUser.id,
+            username: mongoUser.username,
+            email: mongoUser.email || supabaseUser.email,
+            firstName: mongoUser.firstName || '',
+            lastName: mongoUser.lastName || '',
+            phone: mongoUser.phone || '',
+            address: mongoUser.address || '',
+            role: supabaseUser.role,
+            createdAt: mongoUser.createdAt
+          }
+        : {
+            _id: null,
+            id: supabaseUser.id,
+            username: usernameFallback,
+            email: supabaseUser.email,
+            firstName: '',
+            lastName: '',
+            phone: '',
+            address: '',
+            role: supabaseUser.role,
+            createdAt: supabaseUser.created_at
+          }
     });
   } catch (error) {
     console.error('Profile fetch error:', error);

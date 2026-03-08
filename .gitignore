@@ -47,6 +47,7 @@ Thumbs.db
 config.json
 secrets.json
 credentials.json
+keys.txt
 
 # Backend specific
 backend/node_modules/

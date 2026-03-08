@@ -78,7 +78,7 @@ router.post('/', authenticate, createReviewValidation, createReview);
 router.get('/my-reviews', authenticate, getMyReviewsValidation, getMyReviews);
 
 // Protected routes - require authentication and specific roles
-router.put('/:id/respond', authenticate, authorize(['shopkeeper']), updateReviewResponseValidation, updateReviewResponse);
+router.put('/:id/respond', authenticate, authorize('shopowner'), updateReviewResponseValidation, updateReviewResponse);
 router.delete('/:id', authenticate, deleteReviewValidation, deleteReview);
 
 module.exports = router;

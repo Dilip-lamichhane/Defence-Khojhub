@@ -1,29 +1,16 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { SignedOut } from '@clerk/clerk-react';
-import L from 'leaflet';
 import lottie from 'lottie-web';
-import 'leaflet/dist/leaflet.css';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { fetchSupabaseShops, fetchSupabaseShopProducts } from '../store/slices/shopsSlice';
+import { getMapSupabaseProject, setMapSupabaseProject } from '../config/supabase';
 
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 import securityPin from '../assets/security-pin_6125244.png';
 import userLocationAnimation from '../assets/wired-lineal-2569-logo-google-maps-hover-pinch.json';
-
-let DefaultIcon = L.icon({
-  iconUrl: icon,
-  shadowUrl: iconShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
-
-L.Marker.prototype.options.icon = DefaultIcon;
 
 const valleyGeoData = {
   name: 'Kathmandu Valley Combined',
@@ -53,9 +40,9 @@ const haversineKm = (from, to) => {
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(toRadians(lat1)) *
-      Math.cos(toRadians(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos(toRadians(lat2)) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return 6371 * c;
 };
@@ -73,6 +60,17 @@ const maxDistanceFromBoundsKm = (center) => {
   return Math.max(...candidates.map((point) => haversineKm(center, point)));
 };
 
+const formatDuration = (seconds) => {
+  if (!Number.isFinite(seconds)) return '';
+  const totalMinutes = Math.max(1, Math.round(seconds / 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${totalMinutes} min`;
+};
+
 const CategoryMapPageScrollable = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -81,12 +79,17 @@ const CategoryMapPageScrollable = () => {
     ? category
     : 'All';
   const dispatch = useAppDispatch();
-  const shops = useAppSelector((state) => state.shops.shops);
-  const supabaseCatalog = useAppSelector((state) => state.shops.supabaseCatalog);
-  
+  const { shops, supabaseCatalog, error } = useAppSelector((state) => state.shops);
+  const [mapSupabaseProject, setMapSupabaseProjectState] = useState(getMapSupabaseProject());
+  const isMapDemoMode = mapSupabaseProject === 'DUMMY';
+
   // Map states
   const [mapCenter, setMapCenter] = useState([0, 0]);
   const [mapZoom, setMapZoom] = useState(2);
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const shopMarkersRef = useRef(new Map());
+  const userMarkerRef = useRef(null);
   const [userLocation, setUserLocation] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -97,12 +100,17 @@ const CategoryMapPageScrollable = () => {
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
   const [catalogShop, setCatalogShop] = useState(null);
   const [catalogSearch, setCatalogSearch] = useState('');
-  const [shopIcon, setShopIcon] = useState(() => L.icon({
-    iconUrl: securityPin,
-    iconSize: [40, 40],
-    iconAnchor: [20, 40],
-    popupAnchor: [0, -36]
-  }));
+  const [shopIconSize, setShopIconSize] = useState([40, 40]);
+  const [isDirectionsOpen, setIsDirectionsOpen] = useState(false);
+  const [directionsShop, setDirectionsShop] = useState(null);
+  const [directionsMode, setDirectionsMode] = useState(null);
+  const [routeStatus, setRouteStatus] = useState('idle');
+  const [routeDuration, setRouteDuration] = useState(null);
+  const [routeError, setRouteError] = useState(null);
+  const [routeGeojson, setRouteGeojson] = useState({ type: 'FeatureCollection', features: [] });
+  const [altRouteGeojson, setAltRouteGeojson] = useState({ type: 'FeatureCollection', features: [] });
+  const [directionsAnchor, setDirectionsAnchor] = useState(null);
+  const [isRoutingActive, setIsRoutingActive] = useState(false);
 
   useEffect(() => {
     const img = new Image();
@@ -112,24 +120,13 @@ const CategoryMapPageScrollable = () => {
       const width = Math.max(1, Math.round(img.naturalWidth * scale));
       const height = Math.max(1, Math.round(img.naturalHeight * scale));
 
-      setShopIcon(L.icon({
-        iconUrl: securityPin,
-        iconSize: [width, height],
-        iconAnchor: [Math.round(width / 2), height],
-        popupAnchor: [0, -height + 4]
-      }));
+      setShopIconSize([width, height]);
     };
     img.src = securityPin;
   }, []);
 
-  const userLocationIcon = useMemo(() => {
-    return L.divIcon({
-      className: 'user-location-lottie',
-      html: '<div id="user-location-lottie" style="width:56px;height:56px;"></div>',
-      iconSize: [56, 56],
-      iconAnchor: [28, 56],
-      popupAnchor: [0, -48]
-    });
+  const userLocationIconHtml = useMemo(() => {
+    return '<div id="user-location-lottie" style="width:56px;height:56px;"></div>';
   }, []);
 
   useEffect(() => {
@@ -157,20 +154,84 @@ const CategoryMapPageScrollable = () => {
   // Filter states
   const [productSearch, setProductSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(initialSelectedCategory);
-  const [distanceFilter, setDistanceFilter] = useState(10);
+  const [distanceFilter, setDistanceFilter] = useState(50);
   const [minRating, setMinRating] = useState(0);
   const [sortByRating, setSortByRating] = useState('desc');
   const [radiusFitToken, setRadiusFitToken] = useState(0);
   
   useEffect(() => {
+    if (mapInstanceRef.current || !mapRef.current) return;
+    const style = {
+      version: 8,
+      sources: {
+        osm: {
+          type: 'raster',
+          tiles: [
+            'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
+          ],
+          tileSize: 256,
+          attribution: '© OpenStreetMap contributors'
+        }
+      },
+      layers: [{ id: 'osm-tiles', type: 'raster', source: 'osm' }]
+    };
+    const map = new maplibregl.Map({
+      container: mapRef.current,
+      style,
+      center: [mapCenter[1] || 0, mapCenter[0] || 0],
+      zoom: mapZoom,
+      maxZoom: 19,
+      minZoom: 3
+    });
+    mapInstanceRef.current = map;
+    map.on('load', () => {
+      map.resize();
+      const empty = { type: 'FeatureCollection', features: [] };
+      if (!map.getSource('route-main')) {
+        map.addSource('route-main', { type: 'geojson', data: empty });
+      }
+      if (!map.getLayer('route-main-line')) {
+        map.addLayer({
+          id: 'route-main-line',
+          type: 'line',
+          source: 'route-main',
+          paint: {
+            'line-color': '#2563eb',
+            'line-width': 5,
+            'line-opacity': 0.9
+          }
+        });
+      }
+      if (!map.getSource('route-alt')) {
+        map.addSource('route-alt', { type: 'geojson', data: empty });
+      }
+      if (!map.getLayer('route-alt-line')) {
+        map.addLayer({
+          id: 'route-alt-line',
+          type: 'line',
+          source: 'route-alt',
+          paint: {
+            'line-color': '#94a3b8',
+            'line-width': 4,
+            'line-opacity': 0.55
+          }
+        });
+      }
+    });
+  }, [mapCenter, mapZoom]);
+
+  useEffect(() => {
     const query = productSearch.trim();
     const delay = query ? 350 : 0;
     const timeoutId = setTimeout(() => {
-      dispatch(fetchSupabaseShops(query ? { product: query } : {}));
+      dispatch(fetchSupabaseShops(query ? { product: query, project: mapSupabaseProject } : { project: mapSupabaseProject }));
     }, delay);
 
     return () => clearTimeout(timeoutId);
-  }, [dispatch, productSearch]);
+  }, [dispatch, productSearch, mapSupabaseProject]);
+
 
   useEffect(() => {
     if (userLocation) return;
@@ -204,24 +265,86 @@ const CategoryMapPageScrollable = () => {
       .replace(/\s+/g, '')
       .replace(/&/g, 'and');
 
-  const toSupabaseShopId = (shop) => {
-    const raw = shop?.id ?? shop?._id;
-    if (Number.isFinite(raw)) return Number(raw);
-    const str = String(raw ?? '');
-    if (str.startsWith('sb_')) {
-      const parsed = Number(str.slice(3));
-      return Number.isFinite(parsed) ? parsed : null;
-    }
-    const parsed = Number(str);
-    return Number.isFinite(parsed) ? parsed : null;
+  const parseMinutes = (timeValue) => {
+    if (!timeValue) return null;
+    const [hours, minutes] = String(timeValue).split(':').map(Number);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+    return hours * 60 + minutes;
   };
 
-  const openCatalog = (marker) => {
+  const isShopOpen = (openTime, closeTime) => {
+    if (isMapDemoMode) return true;
+    const openMinutes = parseMinutes(openTime);
+    const closeMinutes = parseMinutes(closeTime);
+    if (openMinutes == null || closeMinutes == null) return false;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    if (closeMinutes < openMinutes) {
+      return currentMinutes >= openMinutes || currentMinutes <= closeMinutes;
+    }
+    return currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
+  };
+
+  const toSupabaseShopId = (shop) => {
+    const raw = shop?.id ?? shop?._id;
+    if (!raw) return null;
+    const str = String(raw);
+    if (str.startsWith('sb_')) {
+      return str.slice(3);
+    }
+    return str;
+  };
+
+  const openCatalog = useCallback((marker) => {
+    if (isRoutingActive) return;
     if (!marker?.shopId) return;
     setCatalogShop(marker);
     setCatalogSearch('');
     setIsCatalogOpen(true);
-    dispatch(fetchSupabaseShopProducts({ shopId: marker.shopId }));
+    dispatch(fetchSupabaseShopProducts({ shopId: marker.shopId, project: mapSupabaseProject }));
+  }, [dispatch, isRoutingActive, mapSupabaseProject]);
+
+  const openDirections = useCallback((marker, anchor) => {
+    if (!marker) return;
+    setDirectionsShop(marker);
+    setIsDirectionsOpen(true);
+    setDirectionsMode(null);
+    setRouteStatus('idle');
+    setRouteDuration(null);
+    setRouteError(null);
+    setRouteGeojson({ type: 'FeatureCollection', features: [] });
+    setAltRouteGeojson({ type: 'FeatureCollection', features: [] });
+    setDirectionsAnchor(anchor || null);
+    setIsRoutingActive(true);
+  }, []);
+
+  const closeDirections = () => {
+    setIsDirectionsOpen(false);
+    setDirectionsShop(null);
+    setDirectionsMode(null);
+    setRouteStatus('idle');
+    setRouteDuration(null);
+    setRouteError(null);
+    setRouteGeojson({ type: 'FeatureCollection', features: [] });
+    setAltRouteGeojson({ type: 'FeatureCollection', features: [] });
+    setDirectionsAnchor(null);
+    setIsRoutingActive(false);
+  };
+
+  const toggleMapDatabase = () => {
+    const nextProject = mapSupabaseProject === 'DUMMY' ? 'REAL' : 'DUMMY';
+    const resolved = setMapSupabaseProject(nextProject);
+    setMapSupabaseProjectState(resolved);
+
+    if (catalogShop?.shopId) {
+      dispatch(
+        fetchSupabaseShopProducts({
+          shopId: catalogShop.shopId,
+          q: catalogSearch.trim() || undefined,
+          project: resolved
+        })
+      );
+    }
   };
 
   const filteredMarkers = (shops || [])
@@ -240,35 +363,34 @@ const CategoryMapPageScrollable = () => {
         position: [lat, lng],
         rating: Number(shop.rating ?? shop.averageRating ?? 0) || 0,
         category: shop.category?.name || shop.category || 'Uncategorized',
+        open_time: shop.open_time || shop.operatingHours?.open || shop.operatingHours?.monday?.open || null,
+        close_time: shop.close_time || shop.operatingHours?.close || shop.operatingHours?.monday?.close || null,
+        status: shop.status || null
       };
     })
     .filter(Boolean)
     .filter(marker => {
-    // Category filter
-    const matchesCategory =
-      selectedCategory === 'All' ||
-      normalizeCategory(marker.category) === normalizeCategory(selectedCategory);
-    
-    // Rating filter
-    const matchesRating = marker.rating >= minRating;
-    
-    // Distance filter (simplified - within range)
-    // Calculate a deterministic distance based on marker position for consistent filtering
-    const distanceBase = userLocation;
-    const matchesDistance = !distanceBase
-      ? true
-      : Math.sqrt(
-          Math.pow(marker.position[0] - distanceBase[0], 2) +
-            Math.pow(marker.position[1] - distanceBase[1], 2)
-        ) *
-          100 <=
-        distanceFilter;
-    
-    return matchesCategory && matchesRating && matchesDistance;
-  }).sort((a, b) => {
-    if (sortByRating === 'desc') return b.rating - a.rating;
-    return a.rating - b.rating;
-  });
+      // Category filter
+      const matchesCategory =
+        selectedCategory === 'All' ||
+        normalizeCategory(marker.category).includes(normalizeCategory(selectedCategory)) ||
+        normalizeCategory(selectedCategory).includes(normalizeCategory(marker.category));
+
+      // Rating filter
+      const matchesRating = marker.rating >= minRating;
+
+      // Distance filter using haversineKm
+      const distanceBase = userLocation;
+      const exactDistance = distanceBase ? haversineKm(distanceBase, marker.position) : 0;
+      const matchesDistance = !distanceBase || distanceFilter >= 50
+        ? true
+        : exactDistance <= distanceFilter;
+
+      return matchesCategory && matchesRating && matchesDistance;
+    }).sort((a, b) => {
+      if (sortByRating === 'desc') return b.rating - a.rating;
+      return a.rating - b.rating;
+    });
 
   const [locationError, setLocationError] = useState(null);
 
@@ -463,9 +585,245 @@ const CategoryMapPageScrollable = () => {
     setMapZoom(prev => Math.max(prev - 1, 3));
   };
 
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const canvas = map.getCanvas();
+    if (!canvas) return;
+    canvas.style.filter = isDarkMode ? 'invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9)' : 'none';
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const center = mapCenter;
+    if (!center || center.length !== 2) return;
+    const shouldFit = Number.isFinite(distanceFilter) && radiusFitToken >= 0;
+    if (shouldFit) {
+      const rect = map.getContainer().getBoundingClientRect();
+      const minPixels = Math.max(1, Math.min(rect.width, rect.height));
+      const maxDistanceKm = maxDistanceFromBoundsKm(center) || 100;
+      const percent = Math.max(1, Math.min(100, Number(distanceFilter) || 1));
+      const effectiveRadiusKm = maxDistanceKm * (percent / 100);
+      const radiusMeters = Math.max(100, effectiveRadiusKm * 1000);
+      const metersPerPixel = (radiusMeters * 2) / minPixels;
+      const rawZoom = Math.log2(40075016.686 / (256 * metersPerPixel)) - 0.6;
+      const targetZoom = Math.max(3, Math.min(19, Math.round(rawZoom)));
+      if (targetZoom !== mapZoom) setMapZoom(targetZoom);
+      map.flyTo({ center: [center[1], center[0]], zoom: targetZoom, duration: 1500, essential: true });
+    } else {
+      map.flyTo({ center: [center[1], center[0]], zoom: mapZoom, duration: 1500, essential: true });
+    }
+  }, [mapCenter, mapZoom, distanceFilter, radiusFitToken]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    if (userLocation && Array.isArray(userLocation) && userLocation.length === 2) {
+      const el = document.createElement('div');
+      el.className = 'user-location-marker';
+      el.innerHTML = userLocationIconHtml;
+      el.style.width = '56px';
+      el.style.height = '56px';
+      el.style.zIndex = '1000';
+      if (!userMarkerRef.current) {
+        userMarkerRef.current = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+          .setLngLat([userLocation[1], userLocation[0]])
+          .addTo(map);
+      } else {
+        userMarkerRef.current.setLngLat([userLocation[1], userLocation[0]]);
+      }
+    } else {
+      if (userMarkerRef.current) {
+        userMarkerRef.current.remove();
+        userMarkerRef.current = null;
+      }
+    }
+  }, [userLocation, userLocationIconHtml]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const current = shopMarkersRef.current;
+    const nextIds = new Set(filteredMarkers.map(m => String(m.id)));
+    for (const [id, mk] of current.entries()) {
+      if (!nextIds.has(id)) {
+        mk.marker.remove();
+        current.delete(id);
+      }
+    }
+    filteredMarkers.forEach((marker) => {
+      const id = String(marker.id);
+      const lng = marker.position[1];
+      const lat = marker.position[0];
+      if (current.has(id)) {
+        current.get(id).marker.setLngLat([lng, lat]);
+        return;
+      }
+      const isOpen = isShopOpen(marker.open_time, marker.close_time);
+      const el = document.createElement('div');
+      el.style.width = `${shopIconSize[0]}px`;
+      el.style.height = `${shopIconSize[1]}px`;
+      el.style.transform = 'translate(-50%, -100%)';
+      el.style.cursor = 'pointer';
+      el.style.borderRadius = '9999px';
+      el.style.boxShadow = isOpen
+        ? '0 0 12px rgba(34,197,94,0.55)'
+        : '0 0 12px rgba(239,68,68,0.55)';
+      const img = document.createElement('img');
+      img.src = securityPin;
+      img.style.width = '100%';
+      img.style.height = '100%';
+      img.style.display = 'block';
+      el.appendChild(img);
+      const popupEl = document.createElement('div');
+      popupEl.className = 'p-2';
+      popupEl.innerHTML = `
+        <div class="p-2">
+          <h3 class="font-bold text-lg">${marker.name}</h3>
+          <p class="text-gray-600">${marker.category}</p>
+          <div class="mt-2 flex items-center gap-2 text-xs">
+            <span class="inline-flex items-center rounded-full px-2 py-1 ${isOpen ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
+              ${isOpen ? 'Open' : 'Closed'}
+            </span>
+            <span class="text-gray-500">${marker.open_time || '--:--'} - ${marker.close_time || '--:--'}</span>
+          </div>
+          <div class="flex items-center mt-2">
+            <span class="text-yellow-500">★</span>
+            <span class="ml-1 font-semibold">${marker.rating}</span>
+          </div>
+          <button type="button" data-action="catalog" class="mt-3 w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">View catalog</button>
+          <button type="button" data-action="directions" class="mt-2 w-full rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200">Show directions</button>
+        </div>
+      `;
+      const popup = new maplibregl.Popup({ offset: 16 }).setDOMContent(popupEl);
+      const catalogBtn = popupEl.querySelector('[data-action="catalog"]');
+      if (catalogBtn) {
+        catalogBtn.addEventListener('click', () => openCatalog(marker));
+      }
+      const directionsBtn = popupEl.querySelector('[data-action="directions"]');
+      if (directionsBtn) {
+        directionsBtn.addEventListener('click', () => {
+          popup.remove();
+          const map = mapInstanceRef.current;
+          const anchor = map ? map.project([lng, lat]) : null;
+          openDirections(marker, anchor);
+        });
+      }
+      const mk = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+        .setLngLat([lng, lat])
+        .setPopup(popup)
+        .addTo(map);
+      current.set(id, { marker: mk, popup });
+    });
+  }, [filteredMarkers, shopIconSize, openCatalog, openDirections, isShopOpen]);
+
+  useEffect(() => {
+    if (!isRoutingActive) return;
+    const current = shopMarkersRef.current;
+    for (const entry of current.values()) {
+      if (entry?.popup) entry.popup.remove();
+    }
+  }, [isRoutingActive]);
+
+  useEffect(() => {
+    if (!isDirectionsOpen || !directionsShop || !directionsMode) return;
+    const origin = Array.isArray(userLocation) && userLocation.length === 2
+      ? userLocation
+      : Array.isArray(mapCenter) && mapCenter.length === 2 && (mapCenter[0] !== 0 || mapCenter[1] !== 0)
+        ? mapCenter
+        : null;
+    if (!origin) {
+      setRouteStatus('error');
+      setRouteError('Turn on location to get directions.');
+      setRouteGeojson({ type: 'FeatureCollection', features: [] });
+      setAltRouteGeojson({ type: 'FeatureCollection', features: [] });
+      setIsRoutingActive(false);
+      return;
+    }
+    const destination = directionsShop.position;
+    if (!destination || destination.length !== 2) return;
+    const profile = directionsMode === 'walking' ? 'foot' : 'driving';
+    const coords = `${origin[1]},${origin[0]};${destination[1]},${destination[0]}`;
+    const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?alternatives=true&overview=full&geometries=geojson&steps=false`;
+    const controller = new AbortController();
+    setRouteStatus('loading');
+    setRouteError(null);
+    setRouteDuration(null);
+    fetch(url, { signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error('routing_failed');
+        return res.json();
+      })
+      .then((data) => {
+        const routes = Array.isArray(data?.routes) ? data.routes : [];
+        if (routes.length === 0) {
+          throw new Error('no_routes');
+        }
+        const mainRoute = routes[0];
+        const altRoutes = routes.slice(1);
+        const distanceMeters = Number(mainRoute?.distance);
+        const walkSpeed = 1.4;
+        const driveSpeed = 8.33;
+        const speed = directionsMode === 'walking' ? walkSpeed : driveSpeed;
+        const estimatedSeconds = Number.isFinite(distanceMeters)
+          ? distanceMeters / speed
+          : Number(mainRoute?.duration);
+        setRouteDuration(estimatedSeconds);
+        setRouteGeojson({
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              properties: {},
+              geometry: mainRoute.geometry
+            }
+          ]
+        });
+        setAltRouteGeojson({
+          type: 'FeatureCollection',
+          features: altRoutes.map((route, index) => ({
+            type: 'Feature',
+            properties: { index },
+            geometry: route.geometry
+          }))
+        });
+        setRouteStatus('ready');
+      })
+      .catch((error) => {
+        if (error?.name === 'AbortError') return;
+        setRouteStatus('error');
+        setRouteError('Unable to calculate route. Try again.');
+        setRouteGeojson({ type: 'FeatureCollection', features: [] });
+        setAltRouteGeojson({ type: 'FeatureCollection', features: [] });
+        setIsRoutingActive(false);
+      });
+    return () => controller.abort();
+  }, [isDirectionsOpen, directionsShop, directionsMode, userLocation, mapCenter]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const mainSource = map.getSource('route-main');
+    if (mainSource && routeGeojson) {
+      mainSource.setData(routeGeojson);
+    }
+    const altSource = map.getSource('route-alt');
+    if (altSource && altRouteGeojson) {
+      altSource.setData(altRouteGeojson);
+    }
+    const mainFeature = routeGeojson?.features?.[0];
+    const coords = mainFeature?.geometry?.coordinates;
+    if (Array.isArray(coords) && coords.length > 1) {
+      const bounds = coords.reduce((acc, coord) => acc.extend(coord), new maplibregl.LngLatBounds(coords[0], coords[0]));
+      map.fitBounds(bounds, { padding: 80, duration: 1000 });
+    }
+  }, [routeGeojson, altRouteGeojson]);
+
   return (
     <div className={`h-screen overflow-hidden ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
-      <style dangerouslySetInnerHTML={{__html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .user-location-marker {
           position: relative;
           z-index: 1000 !important;
@@ -502,71 +860,35 @@ const CategoryMapPageScrollable = () => {
       `}} />
       {/* Map Section - Full Screen */}
       <div className="relative w-full h-full">
-        {/* Map Container */}
-        <MapContainer 
-          center={mapCenter} 
-          zoom={mapZoom} 
-          style={{ width: '100%', height: '100%' }}
-          className="z-0"
-          maxZoom={19}
-          minZoom={3}
-          zoomControl={false}
-          scrollWheelZoom={true}
-          doubleClickZoom={true}
-          touchZoom={true}
-        >
-          {/* Map Tiles - Switch between Dark and Light */}
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-            url={isDarkMode 
-              ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png" 
-              : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
-            }
-            maxZoom={19}
-          />
-          
-          {/* User Location Marker - Always on top */}
-          {userLocation && (
-            <Marker 
-              position={userLocation} 
-              icon={userLocationIcon} 
-              zIndexOffset={1000}
-            />
+        <div ref={mapRef} className="z-0" style={{ width: '100%', height: '100%' }} />
+
+        <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleMapDatabase}
+              className="rounded-full border bg-white/90 px-3 py-1 text-xs font-semibold shadow-sm hover:bg-white"
+            >
+              Switch DB
+            </button>
+            <span
+              className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                isMapDemoMode
+                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}
+            >
+              {isMapDemoMode ? 'Demo DB' : 'Real DB'} · {mapSupabaseProject}
+            </span>
+          </div>
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm shadow-sm backdrop-blur-sm max-w-xs">
+              <span className="font-semibold block mb-1">Failed to load shop data</span>
+              {typeof error === 'string' ? error : 'Please check your connection and try again.'}
+            </div>
           )}
-          
-          {/* Category Markers */}
-          {filteredMarkers.map(marker => (
-            <Marker key={marker.id} position={marker.position} icon={shopIcon}>
-              <Popup>
-                <div className="p-2">
-                  <h3 className="font-bold text-lg">{marker.name}</h3>
-                  <p className="text-gray-600">{marker.category}</p>
-                  <div className="flex items-center mt-2">
-                    <span className="text-yellow-500">★</span>
-                    <span className="ml-1 font-semibold">{marker.rating}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => openCatalog(marker)}
-                    className="mt-3 w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                  >
-                    View catalog
-                  </button>
-                </div>
-              </Popup>
-            </Marker>
-          ))}
-          
-          <MapSizeUpdater />
-          <MapCenterUpdater
-            center={mapCenter}
-            zoom={mapZoom}
-            radiusKm={distanceFilter}
-            fitToken={radiusFitToken}
-            onZoomChange={setMapZoom}
-          />
-        </MapContainer>
-        
+        </div>
+
         {/* Sidebar */}
         <div className={`absolute left-4 top-4 bottom-4 w-80 rounded-xl shadow-2xl z-10 flex flex-col backdrop-blur-sm transition-colors duration-300 ${isDarkMode ? 'bg-gray-900/95' : 'bg-white/95'}`}>
           {/* Sidebar Header */}
@@ -687,7 +1009,9 @@ const CategoryMapPageScrollable = () => {
                 }}
                 className={`flex-1 h-2 rounded-lg appearance-none cursor-pointer ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`}
               />
-              <span className={`text-sm w-12 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>{distanceFilter}km</span>
+              <span className={`text-sm w-12 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                {distanceFilter >= 50 ? 'Any' : `${distanceFilter}km`}
+              </span>
             </div>
           </div>
           
@@ -773,7 +1097,7 @@ const CategoryMapPageScrollable = () => {
                   : 'bg-red-50 text-red-700 border border-red-200'
               }`}>
                 <div className="flex items-start">
-                  <svg className="w-4 h-4 mr-2 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 mr-2 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <div>
@@ -883,6 +1207,70 @@ const CategoryMapPageScrollable = () => {
             </div>
           </div>
         )}
+
+        {isDirectionsOpen && directionsShop && (
+          <div
+            className={`absolute left-1/2 top-4 z-20 w-80 -translate-x-1/2 rounded-xl shadow-2xl backdrop-blur-sm transition-colors duration-300 ${isDarkMode ? 'bg-gray-900/95 text-gray-100' : 'bg-white/95 text-gray-800'
+              }`}
+          >
+            <div className={`p-4 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Directions</div>
+                  <div className="text-lg font-semibold truncate">{directionsShop.name}</div>
+                  <div className={`text-xs truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{directionsShop.category}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeDirections}
+                  className={`rounded-lg px-3 py-2 text-sm ${isDarkMode ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDirectionsMode('walking')}
+                  className={`rounded-lg px-3 py-2 text-sm font-medium ${directionsMode === 'walking'
+                    ? 'bg-blue-600 text-white'
+                    : isDarkMode
+                      ? 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  Walk
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDirectionsMode('driving')}
+                  className={`rounded-lg px-3 py-2 text-sm font-medium ${directionsMode === 'driving'
+                    ? 'bg-blue-600 text-white'
+                    : isDarkMode
+                      ? 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                >
+                  Vehicle
+                </button>
+              </div>
+              {routeStatus === 'loading' && (
+                <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Calculating route...</div>
+              )}
+              {routeStatus === 'ready' && routeDuration && (
+                <div className={`text-sm ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                  Estimated time: {formatDuration(routeDuration)}
+                </div>
+              )}
+              {routeError && (
+                <div className={`text-sm ${isDarkMode ? 'text-red-300' : 'text-red-600'}`}>{routeError}</div>
+              )}
+            </div>
+          </div>
+        )}
         
         {/* Sign In Button - Top Right */}
         <SignedOut>
@@ -952,76 +1340,6 @@ const CategoryMapPageScrollable = () => {
       </div>
     </div>
   );
-};
-
-// Component to update map center and zoom when state changes with smooth animation
-const MapSizeUpdater = () => {
-  const map = useMap();
-
-  useEffect(() => {
-    const safeInvalidate = () => {
-      const container = map.getContainer?.();
-      if (!container || !container.isConnected) return;
-      map.invalidateSize();
-    };
-    const handleResize = () => {
-      safeInvalidate();
-    };
-    let rafId = null;
-    let timeoutId = null;
-    map.whenReady(() => {
-      rafId = requestAnimationFrame(() => {
-        safeInvalidate();
-      });
-      timeoutId = setTimeout(() => safeInvalidate(), 200);
-    });
-    window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (rafId) cancelAnimationFrame(rafId);
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [map]);
-
-  return null;
-};
-
-const MapCenterUpdater = ({ center, zoom, radiusKm, fitToken, onZoomChange }) => {
-  const map = useMap();
-  const lastFitToken = useRef(null);
-  
-  useEffect(() => {
-    if (!center || !Array.isArray(center) || center.length !== 2) return;
-    map.whenReady(() => {
-      const shouldFit = Number.isFinite(radiusKm) && fitToken !== lastFitToken.current;
-      if (shouldFit) {
-        lastFitToken.current = fitToken;
-        const size = map.getSize();
-        const minPixels = Math.max(1, Math.min(size.x, size.y));
-        const maxDistanceKm = maxDistanceFromBoundsKm(center) || 100;
-        const percent = Math.max(1, Math.min(100, Number(radiusKm) || 1));
-        const effectiveRadiusKm = maxDistanceKm * (percent / 100);
-        const radiusMeters = Math.max(100, effectiveRadiusKm * 1000);
-        const metersPerPixel = (radiusMeters * 2) / minPixels;
-        const rawZoom = Math.log2(40075016.686 / (256 * metersPerPixel)) - 0.6;
-        const targetZoom = Math.max(3, Math.min(19, Math.round(rawZoom)));
-        if (onZoomChange && targetZoom !== zoom) onZoomChange(targetZoom);
-        map.flyTo(center, targetZoom, {
-          animate: true,
-          duration: 1.5,
-          easeLinearity: 0.25
-        });
-        return;
-      }
-      map.flyTo(center, zoom, {
-        animate: true,
-        duration: 1.5,
-        easeLinearity: 0.25
-      });
-    });
-  }, [center, zoom, radiusKm, fitToken, map, onZoomChange]);
-  
-  return null;
 };
 
 export default CategoryMapPageScrollable;

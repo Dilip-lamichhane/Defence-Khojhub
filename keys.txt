@@ -1,64 +1,25 @@
-# ======================================
-# PROJECT CREDENTIALS GUIDE
-# ======================================
-#
-# This file contains all the credentials used in the project.
-# To use these credentials:
-#
-# 1. BACKEND CREDENTIALS:
-#    - Copy the "BACKEND ENVIRONMENT VARIABLES" section below
-#    - Paste into: f:\Trae Projects\FinalPROJ\backend\.env
-#    - Replace placeholder values with your actual credentials
-#
-# 2. FRONTEND CREDENTIALS:
-#    - Copy the "FRONTEND ENVIRONMENT VARIABLES" section below
-#    - Paste into: f:\Trae Projects\FinalPROJ\frontend\.env
-#    - Replace placeholder values with your actual credentials
-#
-# 3. OPTIONAL SERVICES:
-#    - Uncomment and configure any optional services you want to use
-#    - These are not required for basic functionality
-#
-# ======================================
-# BACKEND ENVIRONMENT VARIABLES
-# ======================================
+# Credentials checklist (placeholders only)
+# NOTE: Do not commit real secrets to source control.
 
-# Server Configuration
-PORT=5000
-NODE_ENV=development
-
-# Database Configuration
-MONGODB_URI=mongodb://127.0.0.1:27017/your_database_name
-SUPABASE_URL=https://your-project-id.supabase.co
-SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
-SUPABASE_ANON_KEY=your_supabase_anon_key
-
-# Authentication
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-JWT_EXPIRE=1d
-
-# Clerk Authentication (if using Clerk)
-CLERK_SECRET_KEY=your_clerk_secret_key
-CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
-
-# Google Maps API
-GOOGLE_MAPS_API_KEY=your-google-maps-api-key
-
-# CORS Configuration
-CORS_ORIGIN=http://localhost:5173
-
-# Rate Limiting
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX_REQUESTS=100
-
+## Frontend (Vite)
+# Add to: frontend/.env
 # ======================================
 # FRONTEND ENVIRONMENT VARIABLES
 # ======================================
 
-VITE_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_YXJ0aXN0aWMtYm94ZXItODYuY2xlcmsuYWNjb3VudHMuZGV2JA
+VITE_ACTIVE_SUPABASE_PROJECT=REAL
+
+# Dummy Database (Geospatial/Location Only)
+VITE_DUMMY_SUPABASE_URL=https://qbimoqxwrcqamnghiear.supabase.co
+VITE_DUMMY_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFiaW1vcXh3cmNxYW1uZ2hpZWFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4NzQ4ODIsImV4cCI6MjA4NjQ1MDg4Mn0.EV4ZIxOVFZwy4aL1kfUO8imV4S_tZ8Hb5p8SEHtvI1E
+
+# Real Database (Full Operations)
+VITE_REAL_SUPABASE_URL=https://wiaqtwmprwqxmyfptgsg.supabase.co
+VITE_REAL_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndpYXF0d21wcndxeG15ZnB0Z3NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3NDk0NjQsImV4cCI6MjA4NzMyNTQ2NH0.1uen6FZruGtsGo4VlTsWrcSe8jkus8IOes7mdxkdF3c
+
+VITE_SUPABASE_PRODUCT_BUCKET=product-images
+
 
 # ======================================
 # FRONTEND ENVIRONMENT VARIABLES
@@ -67,7 +28,8 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 # Copy these to: f:\Trae Projects\FinalPROJ\frontend\.env
 
 # API Base URL (if different from default)
-# VITE_API_URL=http://localhost:5000/api/v1
+VITE_API_URL=http://localhost:5000/api/v1
+
 
 # Email Configuration (if using email services)
 # EMAIL_SERVICE=gmail
@@ -91,12 +53,8 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 # FACEBOOK_APP_ID=your-facebook-app-id
 # FACEBOOK_APP_SECRET=your-facebook-app-secret
 
-
-
-
-#===================================================================
-
-
+## Backend (Node/Express)
+# Add to: backend/.env
 # ======================================
 # PROJECT CREDENTIALS GUIDE
 # ======================================
@@ -128,9 +86,21 @@ NODE_ENV=development
 
 # Database Configuration
 MONGODB_URI=mongodb://127.0.0.1:27017/khojhub
-SUPABASE_URL=https://qbimoqxwrcqamnghiear.supabase.co
-SUPABASE_PUBLISHABLE_KEY=sb_publishable_SvrLb7ixNaT4n5NKZvpRhA_Mfcpz4Qf
-SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFiaW1vcXh3cmNxYW1uZ2hpZWFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4NzQ4ODIsImV4cCI6MjA4NjQ1MDg4Mn0.EV4ZIxOVFZwy4aL1kfUO8imV4S_tZ8Hb5p8SEHtvI1E
+
+# Supabase (Active project switch)
+ACTIVE_SUPABASE_PROJECT=REAL
+SUPABASE_DEBUG=false
+
+# Dummy Database (Geospatial/Location Only)
+DUMMY_SUPABASE_URL=https://qbimoqxwrcqamnghiear.supabase.co
+DUMMY_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFiaW1vcXh3cmNxYW1uZ2hpZWFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4NzQ4ODIsImV4cCI6MjA4NjQ1MDg4Mn0.EV4ZIxOVFZwy4aL1kfUO8imV4S_tZ8Hb5p8SEHtvI1E
+DUMMY_SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFiaW1vcXh3cmNxYW1uZ2hpZWFyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDg3NDg4MiwiZXhwIjoyMDg2NDUwODgyfQ.TT3Gup7Xt_H-EZDCQ5JwDoz-PBgb_co0rTDUd448Q5c
+
+# Real Database (Full Operations)
+REAL_SUPABASE_URL=https://wiaqtwmprwqxmyfptgsg.supabase.co
+REAL_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndpYXF0d21wcndxeG15ZnB0Z3NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3NDk0NjQsImV4cCI6MjA4NzMyNTQ2NH0.1uen6FZruGtsGo4VlTsWrcSe8jkus8IOes7mdxkdF3c
+REAL_SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndpYXF0d21wcndxeG15ZnB0Z3NnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTc0OTQ2NCwiZXhwIjoyMDg3MzI1NDY0fQ.bMuhrZOUCsEokURwV_UWW6dx-bZoZ7xd5p1Pev3UE9o
+
 
 # Authentication
 JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
@@ -150,42 +120,31 @@ CORS_ORIGIN=http://localhost:5173
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 
-# ======================================
-# FRONTEND ENVIRONMENT VARIABLES
-# ======================================
 
-VITE_CLERK_PUBLISHABLE_KEY=pk_test_YXJ0aXN0aWMtYm94ZXItODYuY2xlcmsuYWNjb3VudHMuZGV2JA
-VITE_SUPABASE_URL=https://qbimoqxwrcqamnghiear.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_SvrLb7ixNaT4n5NKZvpRhA_Mfcpz4Qf
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFiaW1vcXh3cmNxYW1uZ2hpZWFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4NzQ4ODIsImV4cCI6MjA4NjQ1MDg4Mn0.EV4ZIxOVFZwy4aL1kfUO8imV4S_tZ8Hb5p8SEHtvI1E
 
-# ======================================
-# FRONTEND ENVIRONMENT VARIABLES
-# ======================================
+====================================================================================
 
-# Copy these to: f:\Trae Projects\FinalPROJ\frontend\.env
+## Supabase (Dashboard settings)
+# Project Settings → API:
+#  - Project URL: use as VITE_SUPABASE_URL / SUPABASE_URL
+#  - anon public key: use as VITE_SUPABASE_ANON_KEY
+#  - service_role key: use as SUPABASE_SERVICE_ROLE_KEY (backend only)
+# Project Settings → JWT:
+#  - JWT secret: use as SUPABASE_JWT_SECRET
 
-# API Base URL (if different from default)
-# VITE_API_URL=http://localhost:5000/api/v1
+## Clerk (Dashboard settings)
+# Clerk Dashboard → API Keys:
+#  - Publishable key: VITE_CLERK_PUBLISHABLE_KEY (frontend)
+#  - Secret key: CLERK_SECRET_KEY (backend)
+# Clerk Dashboard → JWT Templates:
+#  - Create template name: supabase
+#  - Algorithm: HS256
+#  - Signing secret: use Supabase JWT secret
 
-# Email Configuration (if using email services)
-# EMAIL_SERVICE=gmail
-# EMAIL_USER=your-email@gmail.com
-# EMAIL_PASS=your-app-password
+## Database (MongoDB)
+# MongoDB Atlas (or local)
+#  - Connection string: MONGODB_URI
 
-# Cloud Storage (if using AWS S3, etc.)
-# AWS_ACCESS_KEY_ID=your-aws-access-key
-# AWS_SECRET_ACCESS_KEY=your-aws-secret-key
-# AWS_REGION=your-region
-# S3_BUCKET_NAME=your-bucket-name
-
-# Payment Processing (if using Stripe, etc.)
-# STRIPE_PUBLISHABLE_KEY=pk_test_your-stripe-publishable-key
-# STRIPE_SECRET_KEY=sk_test_your-stripe-secret-key
-# STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
-
-# Social Media OAuth (if using social login)
-# GOOGLE_CLIENT_ID=your-google-client-id
-# GOOGLE_CLIENT_SECRET=your-google-client-secret
-# FACEBOOK_APP_ID=your-facebook-app-id
-# FACEBOOK_APP_SECRET=your-facebook-app-secret
+## Notes
+# 1) Use separate REAL/DUMMY Supabase credentials when needed.
+# 2) Restart dev servers after updating .env files.

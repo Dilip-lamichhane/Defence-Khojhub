@@ -150,9 +150,9 @@ router.get('/search', searchShopsValidation, searchShops);
 router.get('/:id', param('id').isMongoId().withMessage('Valid shop ID is required'), getShopDetails);
 
 // Protected routes - require authentication
-router.post('/', authenticate, authorize(['shopkeeper']), createShopValidation, createShop);
-router.get('/my-shops', authenticate, authorize(['shopkeeper']), getMyShops);
-router.put('/:id', authenticate, authorize(['shopkeeper', 'admin']), isOwnerOrAdmin('Shop'), updateShopValidation, updateShop);
-router.delete('/:id', authenticate, authorize(['shopkeeper', 'admin']), isOwnerOrAdmin('Shop'), param('id').isMongoId().withMessage('Valid shop ID is required'), deleteShop);
+router.post('/', authenticate, authorize('shopowner'), createShopValidation, createShop);
+router.get('/my-shops', authenticate, authorize('shopowner'), getMyShops);
+router.put('/:id', authenticate, authorize('shopowner', 'admin'), isOwnerOrAdmin('Shop'), updateShopValidation, updateShop);
+router.delete('/:id', authenticate, authorize('shopowner', 'admin'), isOwnerOrAdmin('Shop'), param('id').isMongoId().withMessage('Valid shop ID is required'), deleteShop);
 
 module.exports = router;

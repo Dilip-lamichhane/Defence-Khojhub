@@ -1,0 +1,434 @@
+# KHOJHUB UPDATE (Developer Notes)
+
+## Purpose
+Concise, developer‑focused notes for contributors. See README.md for end‑user guide.
+# KHOJHUB PROJECT UPDATE — FULL TECHNICAL GUIDE
+
+Purpose
+This document is a complete technical reference for developers and AI agents. It explains the project’s goals, architecture, file/folder roles, module behavior, data flow, dependencies, configuration, and contribution rules without requiring the reader to open the codebase.
+
+1) Project Overview
+Aim
+KhojHub is a location‑based business discovery platform that helps customers find nearby shops and lets shopkeepers register/manage their catalog. It combines a consumer map experience with a shopkeeper dashboard and an admin portal.
+
+Core Capabilities
+- Map‑based discovery (category filters, product search, distance filters)
+- Shop registration with geo coordinates
+- Shopkeeper dashboard (products, availability, hours)
+- Admin portal (shop approval, moderation, analytics)
+- Clerk authentication with Supabase RLS authorization
+
+2) Repository Structure (Root)
+- backend/                  Node/Express API server, MongoDB models, Supabase integration
+- frontend/                 React/Vite client (map UI, shopkeeper dashboard, admin portal)
+- supabase/                 SQL schema and RLS policy fixes
+- package.json              Root utility scripts (Supabase seeder)
+- supabase-seeder.js        Seeder for Supabase shops/products (root script)
+- keys.txt                  Credentials checklist (ignored by git)
+- README.md                 End‑user and setup guide
+- update.txt                This developer guide
+- report.md, techstack.md, instructions.md, prompt.md, csmap.txt
+	Reference docs or notes
+
+2.1 Current Project Structure (Expanded)
+minor-project1/
+├─ backend/
+│  ├─ config/
+│  │  └─ supabase.js
+│  ├─ controllers/
+│  │  ├─ adminController.js
+│  │  ├─ authController.js
+│  │  ├─ categoryController.js
+│  │  ├─ productController.js
+│  │  ├─ reviewController.js
+│  │  └─ shopController.js
+│  ├─ middleware/
+│  │  ├─ auth.js
+│  │  ├─ clerkSupabaseAuth.js
+│  │  └─ rbac.js
+│  ├─ models/
+│  │  ├─ Category.js
+│  │  ├─ Product.js
+│  │  ├─ Report.js
+│  │  ├─ Review.js
+│  │  ├─ Shop.js
+│  │  ├─ User.js
+│  │  └─ index.js
+│  ├─ routes/
+│  │  ├─ admin.js
+│  │  ├─ auth.js
+│  │  ├─ categories.js
+│  │  ├─ clerkAuth.js
+│  │  ├─ products.js
+│  │  ├─ reviews.js
+│  │  ├─ shops.js
+│  │  └─ supabase.js
+│  ├─ server.js
+│  ├─ supabase-schema.sql
+│  ├─ test-sql.js
+│  ├─ package.json
+│  └─ tsconfig.json
+├─ frontend/
+│  ├─ public/
+│  ├─ src/
+│  │  ├─ assets/
+│  │  ├─ components/
+│  │  │  ├─ AuthBootstrap.jsx
+│  │  │  ├─ CatalogManager.jsx
+│  │  │  ├─ Footer.jsx
+│  │  │  ├─ Header.jsx
+│  │  │  ├─ LoadingSpinner.jsx
+│  │  │  ├─ MapComponent.jsx
+│  │  │  ├─ ProductForm.jsx
+│  │  │  ├─ ProductTable.jsx
+│  │  │  ├─ ProtectedRoute.jsx
+│  │  │  ├─ RatingStars.jsx
+│  │  │  ├─ SearchBar.jsx
+│  │  │  ├─ ShopCard.jsx
+│  │  │  ├─ ShopHoursEditor.jsx
+│  │  │  ├─ ShopInfoCard.jsx
+│  │  │  └─ ThemeToggle.jsx
+│  │  ├─ config/
+│  │  │  └─ supabase.js
+│  │  ├─ contexts/
+│  │  │  ├─ themeContext.js
+│  │  │  └─ ThemeContext.jsx
+│  │  ├─ lib/
+│  │  │  └─ supabaseClient.js
+│  │  ├─ pages/
+│  │  │  ├─ AdminDashboard.jsx
+│  │  │  ├─ AdminPortal.jsx
+│  │  │  ├─ CategoryMapPageScrollable.jsx
+│  │  │  ├─ HomePage.jsx
+│  │  │  ├─ LoginPage.jsx
+│  │  │  ├─ ProfilePage.jsx
+│  │  │  ├─ RegisterPage.jsx
+│  │  │  ├─ ShopDashboard.jsx
+│  │  │  ├─ ShopDetailsPage.jsx
+│  │  │  └─ ShopkeeperDashboard.jsx
+│  │  ├─ store/
+│  │  │  ├─ hooks.js
+│  │  │  ├─ store.js
+│  │  │  └─ slices/
+│  │  │     ├─ authSlice.js
+│  │  │     ├─ mapSlice.js
+│  │  │     ├─ reviewsSlice.js
+│  │  │     ├─ shopsSlice.js
+│  │  │     └─ uiSlice.js
+│  │  ├─ styles/
+│  │  │  └─ custom.css
+│  │  ├─ App.jsx
+│  │  ├─ App.css
+│  │  ├─ index.css
+│  │  └─ main.jsx
+│  ├─ index.html
+│  ├─ eslint.config.js
+│  ├─ tailwind.config.js
+│  ├─ vite.config.js
+│  ├─ package.json
+│  └─ postcss.config.js
+├─ supabase/
+│  ├─ schema-fix.sql
+│  └─ update-rls.sql
+├─ package.json
+├─ README.md
+├─ update.txt
+├─ keys.txt
+├─ mcp-config.json
+└─ other docs (report.md, techstack.md, instructions.md, prompt.md, csmap.txt)
+
+3) Backend Architecture (backend/)
+
+3.1 server.js
+Role
+- Express app bootstrap, middleware registration, route mounting, error handling, Mongo connection, Supabase init.
+Key behaviors
+- CORS uses CORS_ORIGIN env or defaults to http://localhost:5173
+- Routes:
+	/api/v1/health
+	/api/v1/auth
+	/api/v1/clerk-auth
+	/api/v1/shops
+	/api/v1/products
+	/api/v1/reviews
+	/api/v1/categories
+	/api/v1/supabase
+	/api/v1/admin/enterprise (REAL Supabase)
+	/api/v1/admin/dev (DUMMY Supabase)
+- Geocode endpoints for reverse/search via Nominatim
+- MongoDB connection (MONGODB_URI)
+- Supabase config check via initializeSupabase()
+
+3.2 config/supabase.js
+Role
+- Central Supabase client factory for REAL/DUMMY
+- Returns anon/admin clients and validates env config
+Key functions
+- normalizeProject(value): DUMMY or REAL
+- getActiveSupabaseProject(): reads ACTIVE_SUPABASE_PROJECT
+- readProjectConfig(project): reads PROJECT_SUPABASE_* envs
+- getSupabaseClient({ project }): anon client
+- getSupabaseAdminClient({ project, purpose, allowDemo }): service-role client or anon fallback
+- initializeSupabase(): validates active project keys
+- isDemoSupabaseProject(): DUMMY mode check
+
+3.3 middleware/auth.js
+Role
+- Clerk JWT verification for API routes
+- Fetches Supabase user and resolves Mongo user
+Inputs
+- Authorization: Bearer <Clerk JWT>
+Outputs
+- req.auth { clerkId, email, role, supabaseUserId }
+- req.user (Mongo user or null)
+
+3.4 middleware/clerkSupabaseAuth.js
+Role
+- Clerk‑only authentication for clerk‑sync flow
+- Resolves Supabase user and role
+Key functions
+- requireClerkAuth(): verifies Clerk JWT
+- requireSupabaseUser(): ensures user exists in Supabase
+- requireRole(...roles): role gate
+- getClerkEmail(clerkId): resolves email via Clerk API
+
+3.5 middleware/rbac.js
+Role
+- Role and permission checks for admin/shop operations
+Key functions
+- authorize(...roles)
+- authorizePermissions(...permissions)
+- authorizeShopAction()
+- isOwnerOrAdmin(resourceField)
+- isShopOwner()
+
+3.6 routes/
+- auth.js: register/login stubs (Clerk only), profile route
+- clerkAuth.js: POST /clerk-sync + /debug-token
+- shops.js: CRUD + search endpoints for Mongo shops
+- products.js: CRUD + stock endpoints for Mongo products
+- reviews.js: CRUD + review response endpoints
+- categories.js: CRUD + hierarchy endpoints
+- supabase.js: Supabase‑based shop listing, registration, catalog
+- admin.js: Admin analytics, moderation, approvals (Supabase + Mongo)
+
+3.7 controllers/
+authController.js
+- register/login: blocked, returns 403 (Clerk required)
+- getProfile: merges Supabase + Mongo user data
+
+categoryController.js
+- createCategory(name, description, parent, color)
+- getCategories(parent, includeInactive)
+- getCategoryById(id)
+- updateCategory(id, updates)
+- deleteCategory(id) (soft delete)
+- getCategoryHierarchy(includeInactive)
+
+shopController.js
+- createShop: validates, creates Mongo shop
+- searchShops: Mongo geospatial search; fallback to Supabase if none
+- getShopDetails: fetch shop + products + reviews
+- updateShop: owner/admin updates
+- deleteShop: soft delete
+- getMyShops: owner scoped list
+
+productController.js
+- createProduct: validate, owner check, create product, update shop count
+- getProducts: filter by category/price/stock/search/geo
+- getProductById
+- updateProduct: owner/admin gate
+- deleteProduct: soft delete + decrement count
+- updateStock: partial stock update
+- getProductsByShop
+
+reviewController.js
+- createReview, getShopReviews
+- updateReviewResponse (shop owner)
+- deleteReview (author/owner/admin)
+- getMyReviews
+
+adminController.js
+- Extensive analytics and admin flows
+- fetchSupabaseShops / mapSupabaseShopRow helpers
+- listShops, listUsers, listProducts, listReports
+- update shop/product/user/report statuses
+- listSupabaseShops and updateSupabaseShopStatus
+
+3.8 models/
+- User: Clerk‑linked optional password, role, status, timestamps
+- Shop: geo coordinates, category, hours, rating, status
+- Product: category, stock, moderation, images
+- Review: ratings, responses; updates Shop rating
+- Category: hierarchy, color
+- Report: admin reports on shops/products
+
+4) Frontend Architecture (frontend/)
+
+4.1 Entry
+main.jsx
+- Creates app root with ClerkProvider, Redux Provider, ThemeProvider
+App.jsx
+- Routes for Home, Map, Shop Dashboard, Admin Portal, etc.
+- ProtectedRoute for role checks
+- AuthBootstrap syncs Clerk → backend
+
+4.2 Store
+store/store.js
+- Redux toolkit store with slices
+slices
+- authSlice.js: user sync, supabase mode
+- shopsSlice.js: fetch shops + supabase catalog, normalize coords
+- reviewsSlice.js: reviews data
+- mapSlice.js: map UI state
+- uiSlice.js: UI filters
+
+4.3 Core Pages
+HomePage.jsx
+- Marketing landing page + shop registration modal
+- Auto‑detects location (high accuracy) with manual override
+- Calls /supabase/shops/register
+
+CategoryMapPageScrollable.jsx
+- Maplibre map view with OpenStreetMap tiles
+- Filters: category, distance, rating, search
+- Directions popover (center‑top), route rendering
+- Catalog sidebar; fetches shop products via Supabase
+
+ShopDashboard.jsx
+- Shopkeeper dashboard
+- Loads shop + products from Supabase with Clerk token
+- Product CRUD, availability toggle, shop settings, hours editor
+- Fixed category list for product creation
+
+AdminPortal.jsx / AdminDashboard.jsx
+- Admin UI with analytics, approvals, moderation
+
+LoginPage.jsx / RegisterPage.jsx / ProfilePage.jsx
+- Clerk authentication flows
+
+ShopDetailsPage.jsx
+- Shop detail view for Mongo shops
+
+4.4 Components
+- AuthBootstrap: syncs Clerk token with backend, redirects on role
+- ProtectedRoute: role gate + loading overlay
+- MapComponent: Google Maps integration (optional)
+- ShopCard, SearchBar, RatingStars, ThemeToggle
+- ShopInfoCard, ProductForm, ProductTable, CatalogManager, ShopHoursEditor
+
+4.5 Supabase Client (Frontend)
+lib/supabaseClient.js
+- getRealSupabase(), getDummySupabase()
+- getSupabaseByType(type)
+- getSupabaseByTypeWithAuth(type, token)
+
+config/supabase.js
+- Active project selection (REAL/DUMMY)
+- LocalStorage override for map project
+
+5) Data Flow & Logic Flow
+
+Auth Flow
+1. User signs in via Clerk.
+2. AuthBootstrap requests Clerk token and calls backend /clerk-sync.
+3. Backend upserts Supabase users table and Mongo user.
+4. Frontend stores role and allows access to routes.
+
+Shop Registration (Supabase)
+1. User opens registration form on HomePage.
+2. High‑accuracy geolocation fills lat/lng (editable).
+3. POST /api/v1/supabase/shops/register with x-supabase-project header.
+4. Supabase shop row created with pending status.
+
+Shop Approval (Admin)
+1. Admin uses /admin portal.
+2. Admin action updates Supabase shop status.
+3. If approved, Mongo shop may be created (adminController logic).
+
+Shop Discovery
+1. Map UI calls Redux fetchSupabaseShops.
+2. Backend returns shops from Supabase based on filters.
+3. Map renders markers; open/closed glow.
+4. Catalog sidebar fetches /supabase/shops/:id/products.
+
+Shopkeeper Dashboard
+1. Clerk token used to create authed Supabase client.
+2. Loads shop by owner_id or email fallback.
+3. Product CRUD operations directly in Supabase.
+
+6) Supabase Schema & RLS
+- supabase/schema-fix.sql
+- Ensures users, shops, products tables and required columns
+- owner_id and clerk_id are text (Clerk IDs)
+- RLS policies use auth.jwt()->>'sub'
+- Public read policy on shops/products for map
+
+7) Dependencies
+
+Root
+- @supabase/supabase-js ^2.97.0 (seeder)
+
+Backend (package.json)
+- @clerk/clerk-sdk-node ^5.0.3
+- @supabase/supabase-js ^2.95.3
+- bcrypt ^6.0.0
+- cors ^2.8.6
+- dotenv ^17.2.3
+- express ^5.2.1
+- express-validator ^7.3.1
+- jsonwebtoken ^9.0.3
+- mongoose ^9.1.5
+- nodemon ^3.1.11 (dev)
+
+Frontend (package.json)
+- @clerk/clerk-react ^5.60.0
+- @reduxjs/toolkit ^2.11.2
+- @supabase/supabase-js ^2.98.0
+- axios ^1.13.4
+- leaflet ^1.9.4
+- maplibre-gl ^5.19.0
+- lottie-web ^5.13.0
+- lucide-react ^0.563.0
+- react ^19.2.0, react-dom ^19.2.0
+- react-router-dom ^7.13.0
+- react-redux ^9.2.0
+- recharts ^3.7.0
+- tailwindcss ^4.1.18 and related tooling
+
+8) Setup & Configuration
+
+Required files
+- backend/.env (see backend/.env.example)
+- frontend/.env (see frontend/.env.example)
+
+Important environment variables
+- Clerk: CLERK_SECRET_KEY, VITE_CLERK_PUBLISHABLE_KEY
+- Supabase: REAL/DUMMY URLs, ANON keys, SERVICE ROLE keys, JWT secret
+- MongoDB: MONGODB_URI
+- API: VITE_API_URL
+
+Clerk JWT Template
+- Template name: supabase
+- Algorithm: HS256
+- Signing secret: Supabase JWT secret
+
+9) Known Limitations / TODOs
+- Dual‑role user switching not fully implemented
+- Some Mongo flows still legacy vs Supabase flows
+- Admin workflow relies on Supabase status consistency
+- Product categories diverge between Mongo and Supabase
+
+10) Contribution Guidelines
+- Create feature branch; keep PRs scoped
+- Avoid sweeping formatting changes
+- Update README/update.txt when behavior changes
+- Do not commit secrets
+
+11) Coding Conventions
+- JavaScript/React functional components
+- Prefer hooks and Redux Toolkit patterns
+- Validation via express-validator on backend
+- Keep RLS policies aligned with Clerk JWT
+
+Last Updated: March 8, 2026

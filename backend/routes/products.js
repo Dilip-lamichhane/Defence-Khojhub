@@ -67,9 +67,9 @@ router.get('/shop/:shopId', getProductsByShop);
 router.get('/:id', getProductById);
 
 // Protected routes - Shopkeeper/Admin only
-router.post('/', authenticate, authorize('shopkeeper', 'admin'), productValidation, createProduct);
-router.put('/:id', authenticate, authorize('shopkeeper', 'admin'), productValidation, updateProduct);
-router.delete('/:id', authenticate, authorize('shopkeeper', 'admin'), deleteProduct);
-router.patch('/:id/stock', authenticate, authorize('shopkeeper', 'admin'), stockValidation, updateStock);
+router.post('/', authenticate, authorize('shopowner', 'admin'), productValidation, createProduct);
+router.put('/:id', authenticate, authorize('shopowner', 'admin'), productValidation, updateProduct);
+router.delete('/:id', authenticate, authorize('shopowner', 'admin'), deleteProduct);
+router.patch('/:id/stock', authenticate, authorize('shopowner', 'admin'), stockValidation, updateStock);
 
 module.exports = router;

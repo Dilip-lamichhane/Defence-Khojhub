@@ -1,0 +1,79 @@
+{
+  "mcpServers": {
+    "supabase-official": {
+      "url": "https://mcp.supabase.com/mcp",
+      "description": "Official Supabase MCP server - Recommended for most use cases",
+      "enabled": true,
+      "timeout": 30000,
+      "features": ["database", "auth", "storage", "edge-functions", "docs"]
+    },
+    "supabase-community": {
+      "url": "https://supabase-mcp--supabase-community.run.tools?token=sbp_30deed9d6f33ce5a0998e2822af023113966c792",
+      "description": "Community Supabase MCP server",
+      "enabled": false,
+      "timeout": 30000
+    },
+    "supabase-aliyun": {
+      "command": "npx",
+      "args": ["@aliyun-rds/supabase-mcp-server"],
+      "description": "Aliyun RDS Supabase MCP server - For Aliyun-hosted instances",
+      "enabled": false,
+      "env": {
+        "SUPABASE_URL": "${env:SUPABASE_URL}",
+        "SUPABASE_ANON_KEY": "${env:SUPABASE_ANON_KEY}",
+        "SUPABASE_SERVICE_ROLE_KEY": "${env:SUPABASE_SERVICE_ROLE_KEY}"
+      }
+    },
+    "supabase-local": {
+      "command": "npx",
+      "args": ["create-mcp-lite@latest"],
+      "description": "Local MCP server using mcp-lite - For custom Edge Functions",
+      "enabled": false,
+      "env": {
+        "SUPABASE_URL": "${env:SUPABASE_URL}",
+        "SUPABASE_ANON_KEY": "${env:SUPABASE_ANON_KEY}"
+      }
+    }
+  },
+  "supabase": {
+    "projectConfig": {
+      "url": "${env:SUPABASE_URL}",
+      "anonKey": "${env:SUPABASE_ANON_KEY}",
+      "serviceRoleKey": "${env:SUPABASE_SERVICE_ROLE_KEY}",
+      "database": {
+        "host": "${env:SUPABASE_DB_HOST}",
+        "port": "${env:SUPABASE_DB_PORT}",
+        "name": "${env:SUPABASE_DB_NAME}",
+        "user": "${env:SUPABASE_DB_USER}",
+        "password": "${env:SUPABASE_DB_PASSWORD}"
+      }
+    },
+    "security": {
+      "readOnly": false,
+      "projectScope": true,
+      "enableRLS": true
+    },
+    "features": {
+      "database": {
+        "enabled": true,
+        "tools": ["list_tables", "execute_sql", "list_extensions", "list_migrations"]
+      },
+      "auth": {
+        "enabled": true,
+        "tools": ["list_auth_users", "create_auth_user", "delete_auth_user"]
+      },
+      "storage": {
+        "enabled": false,
+        "tools": ["list_storage_buckets", "list_storage_objects"]
+      },
+      "edgeFunctions": {
+        "enabled": true,
+        "tools": ["list_edge_functions", "deploy_edge_function"]
+      },
+      "docs": {
+        "enabled": true,
+        "tools": ["search_docs"]
+      }
+    }
+  }
+}

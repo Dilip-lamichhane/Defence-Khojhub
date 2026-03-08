@@ -8,31 +8,88 @@ const api = axios.create({
   withCredentials: true,
 });
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+const hexToBytes = (hex) => {
+  const clean = String(hex || '').trim();
+  if (!clean || clean.length % 2 !== 0) return null;
+  const bytes = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < clean.length; i += 2) {
+    bytes[i / 2] = parseInt(clean.slice(i, i + 2), 16);
   }
-  return config;
-});
+  return bytes;
+};
 
-const mapSupabaseShopRow = (row) => ({
-  _id: `sb_${row.id}`,
-  name: row.name,
-  description: null,
-  image: null,
-  address: row.address,
-  phone: null,
-  rating: 0,
-  reviewCount: 0,
-  category: row.category ? { name: row.category } : null,
-  operatingHours: null,
-  distance: undefined,
-  location: {
-    type: 'Point',
-    coordinates: [Number(row.longitude), Number(row.latitude)],
-  },
-});
+const parseWkbPoint = (hex) => {
+  const bytes = hexToBytes(hex);
+  if (!bytes || bytes.length < 21) return null;
+  const view = new DataView(bytes.buffer);
+  const littleEndian = view.getUint8(0) === 1;
+  let offset = 1;
+  const type = view.getUint32(offset, littleEndian);
+  offset += 4;
+  const hasSrid = (type & 0x20000000) !== 0;
+  if (hasSrid) {
+    offset += 4;
+  }
+  if (bytes.length < offset + 16) return null;
+  const x = view.getFloat64(offset, littleEndian);
+  const y = view.getFloat64(offset + 8, littleEndian);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { lng: x, lat: y };
+};
+
+const mapSupabaseShopRow = (row) => {
+  const locationHex = typeof row.location === 'string' ? row.location : null;
+  const parsedPoint = locationHex ? parseWkbPoint(locationHex) : null;
+
+  const lat =
+    row.latitude ??
+    row.lat ??
+    row.location?.lat ??
+    row.location?.latitude ??
+    row.location_lat ??
+    row.geo_lat ??
+    row.location?.coordinates?.[1] ??
+    row.geometry?.coordinates?.[1] ??
+    row.coordinates?.[1] ??
+    row.location?.coords?.[1] ??
+    parsedPoint?.lat;
+
+  const lng =
+    row.longitude ??
+    row.lng ??
+    row.lon ??
+    row.location?.lng ??
+    row.location?.longitude ??
+    row.location_lng ??
+    row.geo_lng ??
+    row.location?.coordinates?.[0] ??
+    row.geometry?.coordinates?.[0] ??
+    row.coordinates?.[0] ??
+    row.location?.coords?.[0] ??
+    parsedPoint?.lng;
+
+  return {
+    _id: `sb_${row.id}`,
+    name: row.name,
+    description: row.description ?? null,
+    image: row.image_url ?? null,
+    address: row.address,
+    phone: row.phone ?? null,
+    rating: 0,
+    reviewCount: 0,
+    category: row.category ? { name: row.category } : null,
+    operatingHours: null,
+    open_time: row.open_time ?? null,
+    close_time: row.close_time ?? null,
+    status: row.status ?? null,
+    distance: undefined,
+    location: {
+      type: 'Point',
+      coordinates: [Number(lng), Number(lat)],
+    },
+  };
+};
+
 
 // Async thunks
 export const fetchShops = createAsyncThunk(
@@ -66,8 +123,8 @@ export const fetchShops = createAsyncThunk(
       } catch (fallbackError) {
         return rejectWithValue(
           error.response?.data?.error ||
-            fallbackError.response?.data?.error ||
-            'Failed to fetch shops'
+          fallbackError.response?.data?.error ||
+          'Failed to fetch shops'
         );
       }
     }
@@ -81,6 +138,8 @@ export const fetchSupabaseShops = createAsyncThunk(
       const normalizedParams = params && typeof params === 'object' ? params : {};
       const product = String(normalizedParams.product || '').trim();
       const category = String(normalizedParams.category || '').trim();
+      const project = String(normalizedParams.project || 'REAL').toUpperCase();
+      const headers = { 'x-supabase-project': project };
 
       const pageSize = 500;
       const maxPages = 20;
@@ -95,6 +154,7 @@ export const fetchSupabaseShops = createAsyncThunk(
             ...(product ? { product } : {}),
             ...(category ? { category } : {}),
           },
+          headers,
         });
 
         const batch = response.data?.shops || [];
@@ -129,11 +189,14 @@ export const fetchSupabaseShops = createAsyncThunk(
 
 export const fetchSupabaseShopProducts = createAsyncThunk(
   'shops/fetchSupabaseShopProducts',
-  async ({ shopId, q } = {}, { rejectWithValue }) => {
+  async ({ shopId, q, project } = {}, { rejectWithValue }) => {
     try {
+      const headers = { 'x-supabase-project': String(project || 'REAL').toUpperCase() };
       const response = await api.get(`/supabase/shops/${shopId}/products`, {
         params: q ? { q } : undefined,
+        headers,
       });
+
       return {
         shopId: String(shopId),
         products: response.data?.products || [],
@@ -280,6 +343,7 @@ const shopsSlice = createSlice({
       .addCase(fetchSupabaseShops.pending, (state) => {
         state.loading = true;
         state.error = null;
+        state.shops = [];
       })
       .addCase(fetchSupabaseShops.fulfilled, (state, action) => {
         state.loading = false;
@@ -289,6 +353,13 @@ const shopsSlice = createSlice({
       })
       .addCase(fetchSupabaseShops.rejected, (state, action) => {
         state.loading = false;
+        state.shops = [];
+        state.pagination = {
+          page: 1,
+          limit: 10,
+          total: 0,
+          pages: 1
+        };
         state.error = action.payload;
       })
       .addCase(fetchSupabaseShopProducts.pending, (state, action) => {

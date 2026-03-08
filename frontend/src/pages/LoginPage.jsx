@@ -1,14 +1,15 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { SignIn, useUser } from '@clerk/clerk-react';
+import { SignIn, useAuth, useUser } from '@clerk/clerk-react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { syncUserWithBackend, clearError } from '../store/slices/authSlice';
+import { syncUserWithBackend, getProfile, clearError } from '../store/slices/authSlice';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useAppDispatch();
+  const { getToken } = useAuth();
   const { isSignedIn, user: clerkUser, isLoaded } = useUser();
   
   const { isLoading, error } = useAppSelector((state) => state.auth);
@@ -23,10 +24,11 @@ const LoginPage = () => {
     const syncUser = async () => {
       if (isSignedIn && clerkUser && isLoaded) {
         try {
-          // Sync Clerk user with our backend
-          await dispatch(syncUserWithBackend(clerkUser)).unwrap();
-          
-          // Redirect based on role or intended destination
+          const token = await getToken();
+          if (!token) return;
+          await dispatch(syncUserWithBackend({ token })).unwrap();
+          await dispatch(getProfile({ token })).unwrap();
+
           const from = location.state?.from?.pathname;
           if (from && from !== '/login' && from !== '/register') {
             navigate(from, { replace: true });
@@ -40,7 +42,7 @@ const LoginPage = () => {
     };
 
     syncUser();
-  }, [isSignedIn, clerkUser, isLoaded, dispatch, navigate, location]);
+  }, [isSignedIn, clerkUser, isLoaded, dispatch, navigate, location, getToken]);
 
   // Show loading while Clerk is initializing
   if (!isLoaded || isLoading) {

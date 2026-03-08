@@ -51,10 +51,10 @@ const ThemeToggle = ({ className = '' }) => {
   return (
     <button
       onClick={toggleTheme}
-      className={`p-2 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+      className={`p-2 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-900 shadow-sm ${
         isDark 
-          ? 'text-yellow-400 hover:text-yellow-300 bg-gray-800 hover:bg-gray-700 border border-gray-700' 
-          : 'text-gray-600 hover:text-gray-800 bg-white hover:bg-gray-50 border border-gray-200'
+          ? 'text-yellow-300 hover:text-yellow-200 bg-slate-900 hover:bg-slate-800 border border-slate-600' 
+          : 'text-slate-900 hover:text-slate-950 bg-slate-100 hover:bg-white border border-slate-300'
       } ${className}`}
       title={`Switch to ${isDark ? 'light' : 'dark'} mode`}
       aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}

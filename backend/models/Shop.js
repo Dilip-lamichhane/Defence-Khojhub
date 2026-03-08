@@ -97,6 +97,30 @@ const shopSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected', 'changes_requested', 'suspended'],
+    default: 'pending',
+    index: true
+  },
+  statusReason: {
+    type: String,
+    trim: true,
+    maxlength: 500
+  },
+  requestedChanges: {
+    type: String,
+    trim: true,
+    maxlength: 1000
+  },
+  aiRiskScore: {
+    type: Number,
+    min: 0,
+    max: 100
+  },
+  statusUpdatedAt: {
+    type: Date
+  },
   isActive: {
     type: Boolean,
     default: true
@@ -115,7 +139,7 @@ const shopSchema = new mongoose.Schema({
 shopSchema.index({ location: '2dsphere' });
 
 // Create compound index for search optimization
-shopSchema.index({ category: 1, isActive: 1, verified: 1 });
+shopSchema.index({ category: 1, isActive: 1, status: 1, verified: 1 });
 
 // Calculate visibility radius based on rating (higher rating = larger radius)
 shopSchema.methods.getVisibilityRadius = function() {
@@ -126,6 +150,16 @@ shopSchema.methods.getVisibilityRadius = function() {
 
 // Update updatedAt timestamp
 shopSchema.pre('save', function(next) {
+  if (!this.status) {
+    this.status = this.verified ? 'approved' : 'pending';
+  }
+  if (this.status === 'approved') {
+    this.verified = true;
+  }
+  if (this.status !== 'approved') {
+    this.verified = false;
+  }
+
   this.updatedAt = Date.now();
   next();
 });

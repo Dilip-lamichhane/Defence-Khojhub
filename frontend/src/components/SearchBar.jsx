@@ -5,6 +5,8 @@ import { searchShops } from '../store/slices/shopsSlice';
 import { setUserLocation } from '../store/slices/mapSlice';
 import PropTypes from 'prop-types';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+
 const SearchBar = ({ onSearch, className = '' }) => {
   const dispatch = useAppDispatch();
   const { searchQuery, filters } = useAppSelector((state) => state.ui);
@@ -28,7 +30,7 @@ const SearchBar = ({ onSearch, className = '' }) => {
         
         try {
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+            `${API_BASE_URL}/geocode/reverse?lat=${latitude}&lon=${longitude}`
           );
           const data = await response.json();
           
