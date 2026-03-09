@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { fetchShops } from '../store/slices/shopsSlice';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -556,6 +556,7 @@ const FeaturedShops = ({ shops, loading }) => {
 
 // Conversion Footer
 const ConversionFooter = () => {
+  const location = useLocation();
   const { user, isLoaded, isSignedIn } = useUser();
   const { getToken } = useAuth();
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
@@ -565,8 +566,18 @@ const ConversionFooter = () => {
   const [hasManualCoords, setHasManualCoords] = useState(false);
   const [locationAccuracy, setLocationAccuracy] = useState(null);
   const [locationStatus, setLocationStatus] = useState(null);
+  const shopCategories = [
+    'Restaurant',
+    'Electronics',
+    'Automobile',
+    'Health/Medicine',
+    'Fitness',
+    'Home Services',
+    'Services'
+  ];
   const [formData, setFormData] = useState({
     name: '',
+    category: '',
     latitude: '',
     longitude: '',
     email: '',
@@ -582,6 +593,12 @@ const ConversionFooter = () => {
       }));
     }
   }, [isLoaded, user]);
+
+  useEffect(() => {
+    if (location.state?.openRegister || location.search?.includes('openRegister=true')) {
+      setIsRegisterOpen(true);
+    }
+  }, [location.state, location.search]);
 
   const detectLocation = (allowOverride = false) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -646,6 +663,10 @@ const ConversionFooter = () => {
       setFormError('Shop name is required.');
       return;
     }
+    if (!formData.category) {
+      setFormError('Please select a primary category.');
+      return;
+    }
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       setFormError('Latitude and longitude are required.');
       return;
@@ -671,6 +692,7 @@ const ConversionFooter = () => {
         },
         body: JSON.stringify({
           name: formData.name.trim(),
+          category: formData.category,
           latitude: lat,
           longitude: lng,
           phone: formData.phone.trim(),
@@ -690,6 +712,7 @@ const ConversionFooter = () => {
       setLocationStatus(null);
       setFormData({
         name: '',
+        category: '',
         latitude: '',
         longitude: '',
         email: user?.primaryEmailAddress?.emailAddress || '',
@@ -787,6 +810,23 @@ const ConversionFooter = () => {
                   placeholder="e.g., Sunrise Bakery"
                   required
                 />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium text-gray-700">Primary category</label>
+                <select
+                  name="category"
+                  value={formData.category}
+                  onChange={handleChange}
+                  className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm focus:border-blue-500 focus:outline-none"
+                  required
+                >
+                  <option value="">Select a category</option>
+                  {shopCategories.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700">Latitude</label>
@@ -896,6 +936,7 @@ const HomePage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedRadius, setSelectedRadius] = useState(5);
+
 
   // Categories data
   const categories = [

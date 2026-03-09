@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { UserButton, useAuth, useUser } from '@clerk/clerk-react';
 import { LayoutDashboard, Store, Package, Layers, Settings, Plus } from 'lucide-react';
 import { useAppSelector } from '../store/hooks';
@@ -23,7 +23,10 @@ const ShopDashboard = () => {
   const { user, isLoaded, isSignedIn } = useUser();
   const { getToken } = useAuth();
   const { activeSupabaseProject } = useAppSelector((state) => state.auth);
+  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('overview');
+  const [shops, setShops] = useState([]);
+  const [selectedShopId, setSelectedShopId] = useState('');
   const [shop, setShop] = useState(null);
   const [shopForm, setShopForm] = useState({
     name: '',
@@ -95,57 +98,52 @@ const ShopDashboard = () => {
     if (isSignedIn && !supabaseAuthed) return;
     setIsLoadingShop(true);
     setAlert(null);
-    let shopQuery = supabaseClient
+
+    const { data, error } = await supabaseClient
       .from('shops')
       .select('*')
       .eq('owner_id', user.id)
-      .limit(1);
-
-    const { data, error } = await shopQuery.maybeSingle();
+      .order('created_at', { ascending: false });
 
     if (error) {
-      setAlert({ type: 'error', message: `Failed to load shop: ${error.message}` });
+      setAlert({ type: 'error', message: `Failed to load shops: ${error.message}` });
       setIsLoadingShop(false);
       return;
     }
 
-    if (!data) {
+    let list = data || [];
+
+    if (list.length === 0) {
       const email = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress;
       if (email) {
         const { data: byEmail, error: emailError } = await supabaseClient
           .from('shops')
           .select('*')
           .eq('email', email)
-          .limit(1)
-          .maybeSingle();
+          .order('created_at', { ascending: false });
+
         if (emailError) {
-          setAlert({ type: 'error', message: `Failed to load shop: ${emailError.message}` });
+          setAlert({ type: 'error', message: `Failed to load shops: ${emailError.message}` });
           setIsLoadingShop(false);
           return;
         }
-        if (byEmail) {
-          setShop(byEmail);
-          setShopForm({
-            name: byEmail?.name || '',
-            description: byEmail?.description || '',
-            open_time: byEmail?.open_time || '',
-            close_time: byEmail?.close_time || ''
-          });
-          setIsLoadingShop(false);
-          return;
-        }
+
+        list = byEmail || [];
       }
     }
 
-    setShop(data || null);
+    setShops(list);
+    const initial = list.find((item) => item.id === selectedShopId) || list[0] || null;
+    setShop(initial);
+    setSelectedShopId(initial?.id || '');
     setShopForm({
-      name: data?.name || '',
-      description: data?.description || '',
-      open_time: data?.open_time || '',
-      close_time: data?.close_time || ''
+      name: initial?.name || '',
+      description: initial?.description || '',
+      open_time: initial?.open_time || '',
+      close_time: initial?.close_time || ''
     });
     setIsLoadingShop(false);
-  }, [supabaseClient, user?.id, isSignedIn, supabaseAuthed]);
+  }, [supabaseClient, user?.id, isSignedIn, supabaseAuthed, selectedShopId]);
 
   const loadProducts = useCallback(async () => {
     if (!supabaseClient || !shop?.id) return;
@@ -179,8 +177,22 @@ const ShopDashboard = () => {
   useEffect(() => {
     if (shop?.id) {
       loadProducts();
+    } else {
+      setProducts([]);
     }
   }, [shop?.id, loadProducts]);
+
+  const handleSelectShop = (shopId) => {
+    const next = shops.find((item) => item.id === shopId) || null;
+    setSelectedShopId(shopId);
+    setShop(next);
+    setShopForm({
+      name: next?.name || '',
+      description: next?.description || '',
+      open_time: next?.open_time || '',
+      close_time: next?.close_time || ''
+    });
+  };
 
   const handleShopFormChange = (field, value) => {
     setShopForm((prev) => ({ ...prev, [field]: value }));
@@ -386,6 +398,13 @@ const ShopDashboard = () => {
               <div className="flex items-center gap-3">
                 <button
                   type="button"
+                  onClick={() => navigate('/?openRegister=true')}
+                  className="hidden items-center gap-2 rounded-lg border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 sm:flex"
+                >
+                  Create New Shop
+                </button>
+                <button
+                  type="button"
                   onClick={openCreateProduct}
                   className="hidden items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 sm:flex"
                 >
@@ -403,6 +422,51 @@ const ShopDashboard = () => {
                 {alert.message}
               </div>
             )}
+
+            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">My Shops</h3>
+                  <p className="text-sm text-gray-500">Select a shop to manage its products and settings.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold uppercase text-gray-500">Select Shop</label>
+                  <select
+                    value={selectedShopId}
+                    onChange={(event) => handleSelectShop(event.target.value)}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                  >
+                    <option value="">Choose a shop</option>
+                    {shops.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name || 'Unnamed Shop'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {shops.length === 0 && (
+                  <div className="rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500">
+                    No shops yet. Use "Create New Shop" to add one.
+                  </div>
+                )}
+                {shops.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleSelectShop(item.id)}
+                    className={`rounded-lg border px-4 py-3 text-left text-sm transition ${item.id === selectedShopId ? 'border-indigo-200 bg-indigo-50' : 'border-gray-200 hover:bg-gray-50'}`}
+                  >
+                    <div className="font-semibold text-gray-900">{item.name || 'Unnamed Shop'}</div>
+                    <div className="text-xs text-gray-500">{item.category || 'Uncategorized'}</div>
+                    <div className="text-xs text-gray-400">
+                      {item.latitude && item.longitude ? `${item.latitude}, ${item.longitude}` : 'Location not set'}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {activeSection === 'overview' && (
               <div className="space-y-6">

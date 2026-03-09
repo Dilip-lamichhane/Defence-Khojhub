@@ -4,6 +4,16 @@ const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
 
+const SHOP_PRIMARY_CATEGORIES = [
+  'Restaurant',
+  'Electronics',
+  'Automobile',
+  'Health/Medicine',
+  'Fitness',
+  'Home Services',
+  'Services'
+];
+
 const resolveSupabaseProject = (req, res) => {
   const raw = req.header('x-supabase-project');
   const normalized = String(raw || '').toUpperCase();
@@ -46,7 +56,7 @@ router.post('/shops/register', authenticate, async (req, res) => {
       return res.status(500).json({ error: 'Supabase is not configured' });
     }
 
-    const { name, latitude, longitude, phone, panNumber } = req.body || {};
+    const { name, category, latitude, longitude, phone, panNumber } = req.body || {};
     const ownerId = req.auth?.supabaseUserId;
     const email = req.auth?.email;
 
@@ -55,6 +65,7 @@ router.post('/shops/register', authenticate, async (req, res) => {
     }
 
     const normalizedName = String(name || '').trim();
+    const normalizedCategory = String(category || '').trim();
     const lat = Number(latitude);
     const lng = Number(longitude);
     const normalizedPhone = String(phone || '').trim();
@@ -62,6 +73,9 @@ router.post('/shops/register', authenticate, async (req, res) => {
 
     if (!normalizedName) {
       return res.status(400).json({ error: 'Shop name is required' });
+    }
+    if (!normalizedCategory || !SHOP_PRIMARY_CATEGORIES.includes(normalizedCategory)) {
+      return res.status(400).json({ error: 'A valid primary category is required' });
     }
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return res.status(400).json({ error: 'Latitude and longitude are required' });
@@ -79,6 +93,7 @@ router.post('/shops/register', authenticate, async (req, res) => {
         {
           owner_id: ownerId,
           name: normalizedName,
+          category: normalizedCategory,
           latitude: lat,
           longitude: lng,
           email,

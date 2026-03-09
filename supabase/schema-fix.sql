@@ -80,11 +80,27 @@ ALTER TABLE IF EXISTS shops
 ALTER TABLE IF EXISTS shops
   ALTER COLUMN owner_id TYPE text USING owner_id::text;
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'shops_owner_id_fkey'
+  ) THEN
+    ALTER TABLE shops
+      ADD CONSTRAINT shops_owner_id_fkey
+      FOREIGN KEY (owner_id) REFERENCES users(clerk_id) ON DELETE SET NULL NOT VALID;
+  END IF;
+END $$;
+
 ALTER TABLE IF EXISTS shops
   ADD COLUMN IF NOT EXISTS name text;
 
 ALTER TABLE IF EXISTS shops
   ADD COLUMN IF NOT EXISTS description text;
+
+ALTER TABLE IF EXISTS shops
+  ADD COLUMN IF NOT EXISTS category text;
 
 ALTER TABLE IF EXISTS shops
   ADD COLUMN IF NOT EXISTS image_url text;
@@ -111,6 +127,9 @@ ALTER TABLE IF EXISTS shops
   ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
 
 ALTER TABLE IF EXISTS shops ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS shops_owner_id_idx ON shops (owner_id);
+CREATE INDEX IF NOT EXISTS shops_category_idx ON shops (category);
 
 -- Recreate RLS policies using Clerk JWT subject (string)
 CREATE POLICY shop_owner_select
@@ -160,6 +179,8 @@ ALTER TABLE IF EXISTS products
 ALTER TABLE IF EXISTS products
   ADD COLUMN IF NOT EXISTS shop_id uuid;
 
+CREATE INDEX IF NOT EXISTS products_shop_id_idx ON products (shop_id);
+
 ALTER TABLE IF EXISTS products
   ADD COLUMN IF NOT EXISTS name text;
 
@@ -205,6 +226,15 @@ FOR SELECT
 USING (true);
 
 -- OPTIONAL FK (only if you want strict integrity)
--- ALTER TABLE IF EXISTS products
---   ADD CONSTRAINT IF NOT EXISTS products_shop_id_fkey
---   FOREIGN KEY (shop_id) REFERENCES shops(id) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'products_shop_id_fkey'
+  ) THEN
+    ALTER TABLE products
+      ADD CONSTRAINT products_shop_id_fkey
+      FOREIGN KEY (shop_id) REFERENCES shops(id) ON DELETE CASCADE;
+  END IF;
+END $$;
