@@ -56,12 +56,43 @@ router.post('/shops/register', authenticate, async (req, res) => {
       return res.status(500).json({ error: 'Supabase is not configured' });
     }
 
+    if (!req.auth?.clerkId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { name, category, latitude, longitude, phone, panNumber } = req.body || {};
-    const ownerId = req.auth?.supabaseUserId;
+    const ownerId = req.auth?.clerkId;
     const email = req.auth?.email;
 
     if (!ownerId || !email) {
       return res.status(400).json({ error: 'Owner identity is required' });
+    }
+
+    const { error: userUpsertError } = await supabase
+      .from('users')
+      .upsert(
+        {
+          clerk_id: ownerId,
+          email,
+          role: req.auth?.role || 'user'
+        },
+        { onConflict: 'clerk_id' }
+      )
+      .select('id, clerk_id')
+      .maybeSingle();
+
+    if (userUpsertError) {
+      console.error('Shop registration user upsert error', {
+        message: userUpsertError?.message,
+        code: userUpsertError?.code,
+        details: userUpsertError?.details,
+        hint: userUpsertError?.hint
+      });
+      return res.status(500).json({
+        success: false,
+        message: 'Shop registration failed',
+        error: userUpsertError?.message || 'Failed to ensure user identity'
+      });
     }
 
     const normalizedName = String(name || '').trim();
@@ -106,12 +137,32 @@ router.post('/shops/register', authenticate, async (req, res) => {
       .single();
 
     if (error) {
-      return res.status(500).json({ error: 'Failed to register shop' });
+      console.error('Shop registration insert error', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint
+      });
+      return res.status(500).json({
+        success: false,
+        message: 'Shop registration failed',
+        error: error?.message || 'Failed to register shop'
+      });
     }
-
-    return res.json({ shop: data });
+    return res.status(201).json({
+      success: true,
+      shop: data
+    });
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to register shop' });
+    console.error('Shop registration error', {
+      message: error?.message || 'Unknown error',
+      stack: error?.stack
+    });
+    return res.status(500).json({
+      success: false,
+      message: 'Shop registration failed',
+      error: error?.message || 'Unknown error'
+    });
   }
 });
 
