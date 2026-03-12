@@ -12,6 +12,7 @@ const {
 } = require('../controllers/shopController');
 
 const router = express.Router();
+const { getSupabaseClient } = require('../config/supabase');
 
 // Validation rules
 const createShopValidation = [
@@ -144,6 +145,28 @@ const searchShopsValidation = [
     .isInt({ min: 1, max: 100 })
     .withMessage('Limit must be between 1 and 100')
 ];
+
+// Public routes
+// Debug: raw Supabase shops listing (use ?project=DUMMY or header x-supabase-project)
+router.get('/debug/supabase/shops', async (req, res) => {
+  try {
+    const project = req.query.project || req.headers['x-supabase-project'] || undefined;
+    const supabase = getSupabaseClient({ project });
+    if (!supabase) return res.status(400).json({ error: 'Supabase client not configured' });
+    const { data, error } = await supabase
+      .from('shops')
+      .select('id, name, description, latitude, longitude, status, category')
+      .not('latitude', 'is', null)
+      .not('longitude', 'is', null)
+      .limit(5000);
+
+    if (error) return res.status(500).json({ error: error.message || error });
+    return res.json({ rows: data });
+  } catch (err) {
+    console.error('Debug supabase shops error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to fetch supabase shops' });
+  }
+});
 
 // Public routes
 router.get('/search', searchShopsValidation, searchShops);

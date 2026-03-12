@@ -120,13 +120,13 @@ const ShopCard = ({ shop, onClick, className = '' }) => {
         </p>
 
         {/* Rating and Reviews */}
-        {shop.rating && shop.rating > 0 && (
+        {((shop.rating || shop.averageRating) && (shop.rating || shop.averageRating) > 0) && (
           <div className="flex items-center mb-3">
-            <RatingStars rating={shop.rating} size="sm" />
+            <RatingStars rating={shop.rating || shop.averageRating} size="sm" />
             <span className="ml-2 text-sm text-gray-600">
-              {shop.rating.toFixed(1)}
-              {shop.reviewCount > 0 && (
-                <span className="ml-1">({shop.reviewCount} reviews)</span>
+              {(shop.rating || shop.averageRating).toFixed(1)}
+              {(shop.reviewCount || shop.review_count) > 0 && (
+                <span className="ml-1">({shop.reviewCount || shop.review_count} reviews)</span>
               )}
             </span>
           </div>

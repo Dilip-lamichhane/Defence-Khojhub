@@ -3,10 +3,22 @@
 -- Ensure UUID helper exists
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- Ensure base tables exist in fresh/dummy projects
 CREATE TABLE IF NOT EXISTS users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid()
 );
+
+-- Drop and recreate shops table with uuid id if needed
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'shops' AND column_name = 'id' AND data_type = 'integer'
+  ) THEN
+    -- Drop shops table if id is integer
+    EXECUTE 'DROP TABLE IF EXISTS shops CASCADE';
+    EXECUTE 'CREATE TABLE shops (id uuid PRIMARY KEY DEFAULT gen_random_uuid())';
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS shops (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid()
@@ -15,9 +27,32 @@ CREATE TABLE IF NOT EXISTS shops (
 CREATE TABLE IF NOT EXISTS products (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid()
 );
+-- REVIEWS TABLE (for REAL and DUMMY projects)
+CREATE TABLE IF NOT EXISTS reviews (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  shop_id uuid REFERENCES shops(id) ON DELETE CASCADE,
+  user_id text NOT NULL,
+  rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  review_text text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now()
+);
 
--- USERS TABLE
--- Drop ALL existing RLS policies to avoid auth.uid() casts
+-- Indexes for reviews
+CREATE INDEX IF NOT EXISTS idx_reviews_shop_id ON reviews(shop_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON reviews(user_id);
+
+-- View for shop rating aggregates
+-- Drop existing view first to avoid "cannot change data type of view column" errors
+DROP VIEW IF EXISTS public.shop_rating_stats CASCADE;
+CREATE VIEW public.shop_rating_stats AS
+SELECT
+  shop_id,
+  AVG(rating)::numeric(2,1) AS average_rating,
+  COUNT(*) AS review_count
+FROM public.reviews
+GROUP BY shop_id;
+
 DO $$
 DECLARE r record;
 BEGIN
@@ -178,6 +213,28 @@ ALTER TABLE IF EXISTS products
 
 ALTER TABLE IF EXISTS products
   ADD COLUMN IF NOT EXISTS shop_id uuid;
+-- Convert shop_id to uuid if it exists; attempt safe cast, fallback to drop+recreate
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'products' AND column_name = 'shop_id'
+  ) THEN
+    -- If column is integer try casting; if cast fails, drop and recreate as uuid
+    IF (SELECT data_type FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'shop_id') = 'integer' THEN
+      BEGIN
+        EXECUTE 'ALTER TABLE products ALTER COLUMN shop_id TYPE uuid USING shop_id::uuid';
+      EXCEPTION WHEN OTHERS THEN
+        -- Cannot cast existing values to uuid; recreate column as uuid (loses old values)
+        EXECUTE 'ALTER TABLE products DROP COLUMN IF EXISTS shop_id';
+        EXECUTE 'ALTER TABLE products ADD COLUMN shop_id uuid';
+      END;
+    END IF;
+  ELSE
+    -- If column does not exist, create it as uuid
+    EXECUTE 'ALTER TABLE products ADD COLUMN IF NOT EXISTS shop_id uuid';
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS products_shop_id_idx ON products (shop_id);
 

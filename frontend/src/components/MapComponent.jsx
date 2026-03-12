@@ -150,12 +150,29 @@ const MapComponent = ({ shops, onShopSelect, className = '' }) => {
     markersRef.current.forEach(marker => marker.setMap(null));
     markersRef.current = [];
 
-    // Add new markers
-    const newMarkers = shops.map(shop => {
+    // Add new markers (safely extract numeric coordinates)
+    const newMarkers = [];
+    shops.forEach((shop) => {
+      let latNum;
+      let lngNum;
+
+      if (shop.location && Array.isArray(shop.location.coordinates) && shop.location.coordinates.length >= 2) {
+        lngNum = Number(shop.location.coordinates[0]);
+        latNum = Number(shop.location.coordinates[1]);
+      } else if (shop.latitude !== undefined && shop.longitude !== undefined) {
+        latNum = Number(shop.latitude);
+        lngNum = Number(shop.longitude);
+      }
+
+      if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return; // skip invalid
+
+      const labelText = (shop.rating ?? shop.averageRating) ? `★${Number(shop.rating ?? shop.averageRating).toFixed(1)} (${shop.reviewCount ?? shop.review_count ?? 0})` : '';
+
       const marker = new window.google.maps.Marker({
-        position: { lat: shop.location.coordinates[1], lng: shop.location.coordinates[0] },
+        position: { lat: latNum, lng: lngNum },
         map: mapInstance,
         title: shop.name,
+        label: labelText ? { text: labelText, color: '#111827', fontSize: '12px', fontWeight: '600' } : undefined,
         icon: {
           url: placeholderIcon,
           scaledSize: new window.google.maps.Size(30, 40),
@@ -172,10 +189,10 @@ const MapComponent = ({ shops, onShopSelect, className = '' }) => {
         }
 
         // Center map on selected shop
-        mapInstance.panTo({ lat: shop.location.coordinates[1], lng: shop.location.coordinates[0] });
+        mapInstance.panTo({ lat: latNum, lng: lngNum });
       });
 
-      return marker;
+      newMarkers.push(marker);
     });
 
     markersRef.current = newMarkers;

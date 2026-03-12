@@ -20,21 +20,52 @@ const haversineKm = (from, to) => {
   return 6371 * c;
 };
 
-const mapSupabaseShopRow = (row, distanceKm) => ({
-  _id: `sb_${row.id}`,
-  name: row.name,
-  description: null,
-  address: row.address || null,
-  phone: row.phone || null,
-  averageRating: 0,
-  reviewCount: 0,
-  category: row.category ? { name: row.category } : undefined,
-  location: {
-    type: 'Point',
-    coordinates: [Number(row.longitude), Number(row.latitude)]
-  },
-  distance: distanceKm
-});
+const mapSupabaseShopRow = (row, distanceKm, statsMap = {}) => {
+  const stats = statsMap[row.id] || {};
+  // Prefer precomputed fields from the row if present
+  const avg = (row.average_rating !== undefined && row.average_rating !== null)
+    ? Number(row.average_rating)
+    : (stats.average_rating ? Number(stats.average_rating) : 0);
+  const count = (row.review_count !== undefined && row.review_count !== null)
+    ? Number(row.review_count)
+    : (stats.review_count ? Number(stats.review_count) : 0);
+
+  const lat = Number(row.latitude ?? row.lat ?? (row.location && row.location.coordinates ? row.location.coordinates[1] : null));
+  const lng = Number(row.longitude ?? row.lng ?? (row.location && row.location.coordinates ? row.location.coordinates[0] : null));
+
+  return {
+    id: row.id,
+    _id: `sb_${row.id}`,
+    name: row.name,
+    description: row.description || null,
+    address: row.address || null,
+    phone: row.phone || null,
+    rating: Number.isFinite(avg) ? avg : 0,
+    averageRating: Number.isFinite(avg) ? avg : 0,
+    reviewCount: Number.isFinite(count) ? count : 0,
+    category: row.category ? { name: row.category } : undefined,
+    latitude: Number.isFinite(lat) ? lat : null,
+    longitude: Number.isFinite(lng) ? lng : null,
+    location: Number.isFinite(lat) && Number.isFinite(lng) ? {
+      type: 'Point',
+      coordinates: [lng, lat]
+    } : null,
+    distance: distanceKm
+  };
+};
+
+const normalizeShopForResponse = (shopDoc) => {
+  if (!shopDoc) return shopDoc;
+  const s = (typeof shopDoc.toObject === 'function') ? shopDoc.toObject() : { ...shopDoc };
+  // ensure both naming schemes are present
+  const avg = s.averageRating ?? s.rating ?? s.avgRating ?? 0;
+  const count = s.reviewCount ?? s.review_count ?? s.reviewsCount ?? 0;
+  s.averageRating = Number(avg) || 0;
+  s.rating = Number(avg) || 0;
+  s.reviewCount = Number(count) || 0;
+  s.review_count = Number(count) || 0;
+  return s;
+};
 
 // Create a new shop
 const createShop = async (req, res) => {
@@ -90,7 +121,7 @@ const searchShops = async (req, res) => {
       isActive: true,
       $or: [
         { status: 'approved' },
-        { status: { $exists: false }, verified: true }
+        { status: { $exists: false } }
       ]
     };
 
@@ -124,23 +155,42 @@ const searchShops = async (req, res) => {
     const total = await Shop.countDocuments(query);
 
     if (shops.length === 0 && lat && lng) {
-      const supabase = getSupabaseClient();
+      const requestedProject = (req.query.project || req.headers['x-supabase-project'] || '').toString().trim() || undefined;
+      const supabase = getSupabaseClient({ project: requestedProject });
       if (supabase) {
         const normalizedCategory = category ? String(category) : '';
+
+        // Safe supabase query: require lat/lng present, select required fields
         let supabaseQuery = supabase
           .from('shops')
-          .select('id, name, latitude, longitude, category, status, address, phone')
-          .eq('status', 'approved');
+          .select('id, name, description, latitude, longitude, status, category, open_time, close_time')
+          .not('latitude', 'is', null)
+          .not('longitude', 'is', null)
+          .limit(5000);
+
+        // Allow approved OR active OR null status
+        supabaseQuery = supabaseQuery.or('status.eq.approved,status.eq.active,status.is.null');
 
         if (normalizedCategory) {
           supabaseQuery = supabaseQuery.eq('category', normalizedCategory);
         }
 
-        const { data, error } = await supabaseQuery.limit(5000);
+        const { data, error } = await supabaseQuery;
 
-        if (!error && data) {
+        if (!error && Array.isArray(data)) {
           const origin = [Number(lat), Number(lng)];
           const radiusKm = Number(radius) || 10;
+
+          // Fetch rating stats for these shops to supplement if needed
+          const shopIds = data.map((r) => r.id).filter(Boolean);
+          let statsMap = {};
+          if (shopIds.length > 0) {
+            const { data: statsData, error: statsError } = await supabase.from('shop_rating_stats').select('shop_id, average_rating, review_count').in('shop_id', shopIds);
+            if (!statsError && statsData) {
+              statsMap = statsData.reduce((acc, s) => { acc[s.shop_id] = s; return acc; }, {});
+            }
+          }
+
           const filtered = data
             .map((row) => {
               const latNum = Number(row.latitude);
@@ -148,7 +198,7 @@ const searchShops = async (req, res) => {
               if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return null;
               const distanceKm = haversineKm(origin, [latNum, lngNum]);
               if (distanceKm > radiusKm) return null;
-              return mapSupabaseShopRow(row, distanceKm);
+              return mapSupabaseShopRow(row, distanceKm, statsMap);
             })
             .filter(Boolean)
             .sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
@@ -169,7 +219,7 @@ const searchShops = async (req, res) => {
     }
 
     res.json({
-      shops,
+      shops: shops.map(normalizeShopForResponse),
       totalPages: Math.ceil(total / limit),
       currentPage: parseInt(page),
       total
@@ -190,7 +240,7 @@ const getShopDetails = async (req, res) => {
       isActive: true,
       $or: [
         { status: 'approved' },
-        { status: { $exists: false }, verified: true }
+        { status: { $exists: false } }
       ]
     })
       .populate('owner', 'username email')
@@ -217,7 +267,7 @@ const getShopDetails = async (req, res) => {
     const totalReviews = await Review.countDocuments({ shop: id, isActive: true });
 
     res.json({
-      shop,
+      shop: normalizeShopForResponse(shop),
       products,
       reviews: {
         data: reviews,

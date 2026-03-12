@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { getShopDetails } from '../store/slices/shopsSlice';
-import { fetchReviews } from '../store/slices/reviewsSlice';
+import { fetchReviews, createReview } from '../store/slices/reviewsSlice';
 import RatingStars from '../components/RatingStars';
 import LoadingSpinner from '../components/LoadingSpinner';
 import MapComponent from '../components/MapComponent';
@@ -25,7 +25,19 @@ const ShopDetailsPage = () => {
 
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
-    // Review submission logic would go here
+    if (!user) {
+      // redirect to login or show message
+      return;
+    }
+
+    try {
+      await dispatch(createReview({ shopId, reviewData: { rating: reviewForm.rating, comment: reviewForm.comment } }));
+      // Refresh reviews
+      dispatch(fetchReviews(shopId));
+    } catch (err) {
+      // ignore - errors handled in slice
+    }
+
     setShowReviewForm(false);
     setReviewForm({ rating: 5, comment: '' });
   };

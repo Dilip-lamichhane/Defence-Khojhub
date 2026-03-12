@@ -14,6 +14,12 @@ const ShopInfoCard = ({ shop }) => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">{shop.name || 'Unnamed Shop'}</h3>
+          { (shop.rating || shop.averageRating) && (
+            <div className="mt-1 flex items-center gap-2 text-sm text-gray-600">
+              <span className="text-amber-500 font-semibold">★ {(shop.rating ?? shop.averageRating).toFixed ? (shop.rating ?? shop.averageRating).toFixed(1) : shop.rating ?? shop.averageRating}</span>
+              <span className="text-gray-500">({shop.reviewCount ?? shop.review_count ?? 0} reviews)</span>
+            </div>
+          )}
           <p className="mt-1 text-sm text-gray-600">{shop.description || 'No description provided yet.'}</p>
         </div>
         <div className="flex items-center gap-2">

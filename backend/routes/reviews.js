@@ -9,14 +9,12 @@ const {
   deleteReview,
   getMyReviews
 } = require('../controllers/reviewController');
+const { updateReview } = require('../controllers/reviewController');
 
 const router = express.Router();
 
 // Validation middleware
 const createReviewValidation = [
-  body('shopId')
-    .isMongoId()
-    .withMessage('Valid shop ID is required'),
   body('rating')
     .isInt({ min: 1, max: 5 })
     .withMessage('Rating must be between 1 and 5'),
@@ -29,9 +27,6 @@ const createReviewValidation = [
 ];
 
 const updateReviewResponseValidation = [
-  param('id')
-    .isMongoId()
-    .withMessage('Valid review ID is required'),
   body('response')
     .isString()
     .trim()
@@ -39,16 +34,9 @@ const updateReviewResponseValidation = [
     .withMessage('Response is required and cannot exceed 500 characters')
 ];
 
-const deleteReviewValidation = [
-  param('id')
-    .isMongoId()
-    .withMessage('Valid review ID is required')
-];
+const deleteReviewValidation = [];
 
 const getShopReviewsValidation = [
-  param('shopId')
-    .isMongoId()
-    .withMessage('Valid shop ID is required'),
   query('page')
     .optional()
     .isInt({ min: 1 })
@@ -70,15 +58,32 @@ const getMyReviewsValidation = [
     .withMessage('Limit must be between 1 and 50')
 ];
 
+const updateReviewValidation = [
+  body('rating')
+    .optional()
+    .isInt({ min: 1, max: 5 })
+    .withMessage('Rating must be between 1 and 5'),
+  body('comment')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Comment cannot exceed 500 characters')
+];
+
 // Public routes
 router.get('/shop/:shopId', getShopReviewsValidation, getShopReviews);
 
 // Protected routes - require authentication
+// Accept POST /reviews/shop/:shopId for compatibility with frontend
+router.post('/shop/:shopId', authenticate, createReviewValidation, createReview);
 router.post('/', authenticate, createReviewValidation, createReview);
 router.get('/my-reviews', authenticate, getMyReviewsValidation, getMyReviews);
+router.get('/my', authenticate, getMyReviewsValidation, getMyReviews);
 
 // Protected routes - require authentication and specific roles
 router.put('/:id/respond', authenticate, authorize('shopowner'), updateReviewResponseValidation, updateReviewResponse);
 router.delete('/:id', authenticate, deleteReviewValidation, deleteReview);
+router.put('/:id', authenticate, updateReviewValidation, updateReview);
 
 module.exports = router;

@@ -15,6 +15,32 @@ const initialState = {
   error: null,
 };
 
+const normalizeReview = (r) => {
+  if (!r) return r;
+  // Supabase shape uses id, review_text, created_at, user
+  if (r.id && !r._id) {
+    return {
+      _id: r.id,
+      id: r.id,
+      comment: r.review_text || r.comment || '',
+      createdAt: r.created_at || r.createdAt,
+      rating: r.rating,
+      user: r.user || null,
+      shop_id: r.shop_id || r.shop
+    };
+  }
+  // Mongo shape
+  return {
+    _id: r._id || r.id,
+    id: r.id || r._id,
+    comment: r.comment || r.review_text || '',
+    createdAt: r.createdAt || r.created_at || r.created_at,
+    rating: r.rating,
+    user: r.author || r.user || null,
+    shop_id: r.shop || r.shop_id
+  };
+};
+
 // Fetch reviews for a shop
 export const fetchReviews = createAsyncThunk(
   'reviews/fetchReviews',
@@ -67,6 +93,19 @@ export const deleteReview = createAsyncThunk(
   }
 );
 
+// Fetch my reviews
+export const fetchMyReviews = createAsyncThunk(
+  'reviews/fetchMyReviews',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/reviews/my');
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.error || 'Failed to fetch your reviews');
+    }
+  }
+);
+
 const reviewsSlice = createSlice({
   name: 'reviews',
   initialState,
@@ -88,7 +127,8 @@ const reviewsSlice = createSlice({
       })
       .addCase(fetchReviews.fulfilled, (state, action) => {
         state.loading = false;
-        state.reviews = action.payload.reviews || action.payload;
+        const payload = action.payload.reviews || action.payload;
+        state.reviews = (Array.isArray(payload) ? payload : []).map(normalizeReview);
         state.error = null;
       })
       .addCase(fetchReviews.rejected, (state, action) => {
@@ -102,7 +142,8 @@ const reviewsSlice = createSlice({
       })
       .addCase(createReview.fulfilled, (state, action) => {
         state.loading = false;
-        state.reviews.unshift(action.payload.review || action.payload);
+        const r = normalizeReview(action.payload.review || action.payload);
+        if (r) state.reviews.unshift(r);
         state.error = null;
       })
       .addCase(createReview.rejected, (state, action) => {
@@ -116,9 +157,10 @@ const reviewsSlice = createSlice({
       })
       .addCase(updateReview.fulfilled, (state, action) => {
         state.loading = false;
-        const index = state.reviews.findIndex(review => review._id === action.payload.review._id);
+        const updated = normalizeReview(action.payload.review || action.payload);
+        const index = state.reviews.findIndex(review => review._id === updated._id || review.id === updated.id);
         if (index !== -1) {
-          state.reviews[index] = action.payload.review;
+          state.reviews[index] = updated;
         }
         state.error = null;
       })
@@ -133,10 +175,26 @@ const reviewsSlice = createSlice({
       })
       .addCase(deleteReview.fulfilled, (state, action) => {
         state.loading = false;
-        state.reviews = state.reviews.filter(review => review._id !== action.payload);
+        state.reviews = state.reviews.filter(review => (review._id || review.id) !== action.payload);
         state.error = null;
       })
       .addCase(deleteReview.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+    // Fetch my reviews
+    builder
+      .addCase(fetchMyReviews.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchMyReviews.fulfilled, (state, action) => {
+        state.loading = false;
+        const payload = action.payload.reviews || action.payload;
+        state.reviews = (Array.isArray(payload) ? payload : []).map(normalizeReview);
+        state.error = null;
+      })
+      .addCase(fetchMyReviews.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       });

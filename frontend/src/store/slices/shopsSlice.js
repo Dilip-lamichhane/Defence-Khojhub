@@ -75,7 +75,7 @@ const mapSupabaseShopRow = (row) => {
     image: row.image_url ?? null,
     address: row.address,
     phone: row.phone ?? null,
-    rating: 0,
+    rating: row.rating ?? 0,
     reviewCount: 0,
     category: row.category ? { name: row.category } : null,
     operatingHours: null,
@@ -211,8 +211,14 @@ export const searchShops = createAsyncThunk(
   'shops/searchShops',
   async ({ lat, lng, radius, page = 1, limit = 10 }, { rejectWithValue }) => {
     try {
+      // include active map supabase project via header so backend can query the desired project
+      const { getMapSupabaseProject } = await import('../../config/supabase');
+      const project = getMapSupabaseProject();
+      const headers = { 'x-supabase-project': project };
+
       const response = await api.get('/shops/search', {
-        params: { lat, lng, radius, page, limit }
+        params: { lat, lng, radius, page, limit },
+        headers,
       });
       const { shops = [], totalPages = 1, currentPage = page, total = shops.length } = response.data || {};
       return {
